@@ -5292,6 +5292,7 @@
     document.getElementById('howtoBtn').addEventListener('click', openHowtoFromMenu);
     overlay.classList.remove('hidden');
     lbRender();
+    supaRefresh();
   }
   document.getElementById('howtoIconBtn').addEventListener('click', ()=>{
     howtoOpenedFromStart = false;
@@ -5435,8 +5436,76 @@
   lb.tab = (()=>{ try { return localStorage.getItem('wgb_lb_tab') === 'mine' ? 'mine' : 'top'; } catch(e){ return 'top'; } })();
   lb.ready = false; lb.myShared = null; lb.myRank = null;
 
+  // ---------- Supabase leaderboard (main shared board) ----------
+  // The publishable key is meant to live in web pages: the database only lets it
+  // read names/scores and call the checked submit/rank functions.
+  const SUPABASE_URL = 'https://hnkqzebtrozfhsjbsqie.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_KiOYyYFN1qtI8ADEKOKeZg_CCbmi6h_';
+  const supa = { ok: null, rows: null, me: null };   // ok: null = not tried yet, false = unreachable
+
+  // an anonymous id for this browser, so the board can keep one best score per player
+  function playerId(){
+    try {
+      let id = localStorage.getItem('wgb_player_id');
+      if (!id || id.length < 16){
+        id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID()
+           : 'p-' + Date.now().toString(36) + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+        localStorage.setItem('wgb_player_id', id);
+      }
+      return id;
+    } catch(e){
+      return lb.volatileId || (lb.volatileId = 'v-' + Date.now().toString(36) + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2));
+    }
+  }
+
+  async function supaRpc(fn, body){
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 7000);
+    try {
+      const r = await fetch(SUPABASE_URL + '/rest/v1/rpc/' + fn, {
+        method: 'POST',
+        headers: { apikey: SUPABASE_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: ctrl.signal,
+      });
+      if (!r.ok){
+        const err = new Error('HTTP ' + r.status);
+        err.status = r.status;
+        try { err.detail = (await r.json()).message; } catch(e){}
+        throw err;
+      }
+      const text = await r.text();
+      return text ? JSON.parse(text) : null;
+    } finally { clearTimeout(timer); }
+  }
+
+  let supaBusy = false, supaAgain = false;
+  async function supaRefresh(){
+    // a refresh asked for mid-flight (e.g. right after a submit) runs once more afterwards
+    if (supaBusy){ supaAgain = true; return; }
+    supaBusy = true;
+    try {
+      const id = playerId();
+      const [rows, me] = await Promise.all([
+        supaRpc('top_scores', { p_player_id: id, p_limit: 11 }),
+        supaRpc('my_rank', { p_player_id: id }),
+      ]);
+      supa.rows = Array.isArray(rows) ? rows : [];
+      supa.me = (Array.isArray(me) && me[0]) || null;
+      supa.ok = true;
+    } catch(e){
+      supa.ok = false;   // blocked, offline or down: fall back to the other boards
+    }
+    supaBusy = false;
+    lbRender();
+    if (supaAgain){ supaAgain = false; supaRefresh(); }
+  }
+  // keep the board fresh while a menu with the leaderboard is on screen
+  setInterval(()=>{ if (!overlay.classList.contains('hidden') && supa.ok !== false) supaRefresh(); }, 30000);
+
   async function lbInit(){
     lbRender();
+    supaRefresh();
     try {
       if (window.claude && typeof window.claude.use === 'function'){
         const [db, user] = await Promise.all([window.claude.use('db'), window.claude.use('user')]);
@@ -5494,6 +5563,15 @@
     lb.lastAt = entry.at;
     lb.tab = 'mine';
     lbRender();
+    if (score > 0 && supa.ok !== false){
+      try {
+        await supaRpc('submit_score', { p_player_id: playerId(), p_name: state.playerName || 'นักผจญภัย',
+                                        p_score: score, p_level: level, p_char_lv: charLv });
+      } catch(e){
+        if (!e.status) supa.ok = false;   // network-level failure; an HTTP error means the server refused this score
+      }
+      supaRefresh();
+    }
     if (!lb.db || !lb.myId || lb.canWrite === false || lb.writeRefused || score <= 0) return;
     try {
       const ref = lb.db.doc('scores/' + lb.myId);
@@ -5533,10 +5611,12 @@
     const boxes = document.querySelectorAll('.lb');
     if (!boxes.length) return;
     const seq = ++lbRenderSeq;
-    const shared = !!(lb.db && lb.rows && !lb.sharedFailed);
-    const others = shared ? lb.rows.filter(r => r.id !== lb.myId).slice(0, 10) : [];
+    const useSupa = supa.ok === true && Array.isArray(supa.rows);
+    const shared = useSupa || !!(lb.db && lb.rows && !lb.sharedFailed);
+    const others = useSupa ? supa.rows.filter(r => !r.is_me).slice(0, 10)
+                 : shared ? lb.rows.filter(r => r.id !== lb.myId).slice(0, 10) : [];
     let profiles = {};
-    if (others.length && lb.user){
+    if (!useSupa && others.length && lb.user){
       try { profiles = await lb.user.profiles(others.map(r => r.id)); } catch(e){}
       if (seq !== lbRenderSeq) return;   // a newer render is on its way
     }
@@ -5549,7 +5629,7 @@
       // --- other players' best scores ---
       const top = box.querySelector('.lb-top');
       top.textContent = '';
-      if (!shared) lbEmptyRow(top, lb.ready ? 'ตารางรวมใช้ได้เมื่อเปิดเกมใน claude.ai และล็อกอินแล้ว' : 'กำลังโหลด...');
+      if (!shared) lbEmptyRow(top, (lb.ready && supa.ok === false) ? 'เชื่อมต่อตารางรวมไม่ได้ตอนนี้ (ออฟไลน์?) คะแนนจะเก็บในเครื่องไว้ก่อน' : 'กำลังโหลด...');
       else if (!others.length) lbEmptyRow(top, 'ยังไม่มีผู้เล่นอื่นบันทึกคะแนน');
       else others.forEach((r, i) => lbAddRow(top,
         [String(i + 1), cleanName(r.name) || (profiles[r.id] && profiles[r.id].name) || 'นักผจญภัย', String(r.score), 'ด่าน ' + (r.level || '-')], false));
@@ -5558,7 +5638,11 @@
       // --- my scores ---
       const sum = box.querySelector('.lb-mine-sum');
       let sumText = '';
-      if (shared && lb.myShared){
+      if (useSupa){
+        sumText = supa.me
+          ? 'บนตารางรวม: ' + supa.me.score + ' คะแนน (ด่าน ' + (supa.me.level || '-') + ') • อันดับที่ ' + supa.me.rank
+          : 'ยังไม่มีคะแนนบนตารางรวม เล่นให้จบสักรอบ!';
+      } else if (shared && lb.myShared){
         sumText = 'บนตารางรวม: ' + lb.myShared.score + ' คะแนน (ด่าน ' + (lb.myShared.level || '-') + ')' +
                   (lb.myRank ? ' • อันดับที่ ' + lb.myRank : '');
       } else if (shared && (lb.canWrite === false || lb.writeRefused || !lb.myId)){
