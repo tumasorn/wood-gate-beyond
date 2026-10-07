@@ -21,7 +21,11 @@
     --bone-100:#efe6d8;
     --bone-300:#c9bda9;
     --shadow-hard:#0a0807;
+    --ui:1;            /* text/UI scale, set from the screen size in resize() */
   }
+  /* bigger screens get bigger text: these panels scale as a whole */
+  #hud, #banner, #drops-panel, #quick-slots,
+  #overlay, #pause-overlay, #shop-overlay, #howto-overlay{ zoom:var(--ui); }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
   html,body{
     margin:0; padding:0; width:100%; height:100%;
@@ -257,7 +261,7 @@
     border:3px solid #6e2323;
     color:var(--bone-100);
     font-family:'Press Start 2P', monospace;
-    font-size:10px;
+    font-size:calc(10px * var(--ui));
     display:flex; align-items:center; justify-content:center;
     box-shadow:0 4px 0 #5a1c1c, 0 6px 10px rgba(0,0,0,0.5);
     flex-shrink:0;
@@ -285,7 +289,7 @@
     background:radial-gradient(circle at 35% 30%, #9a7ad6, #5a3d94 70%);
     border:3px solid #3d2866;
     color:var(--bone-100);
-    font-family:'Press Start 2P', monospace; font-size:8px;
+    font-family:'Press Start 2P', monospace; font-size:calc(8px * var(--ui));
     display:flex; align-items:center; justify-content:center;
     box-shadow:0 3px 0 #2e1f4d, 0 5px 8px rgba(0,0,0,0.5);
     touch-action:none; margin-bottom:6px;
@@ -298,7 +302,7 @@
   #skillBtn .skill-cd{
     position:absolute; inset:0; border-radius:50%; pointer-events:none;
     display:flex; align-items:center; justify-content:center;
-    font-size:11px; color:#fff; text-shadow:0 1px 2px #000;
+    font-size:calc(11px * var(--ui)); color:#fff; text-shadow:0 1px 2px #000;
   }
   #skillBtn.disabled{ opacity:0.35; filter:grayscale(0.6); }
   #skillBtn:active, #skillBtn.active{ transform:translateY(3px); box-shadow:0 1px 0 #2e1f4d; }
@@ -308,7 +312,7 @@
     border:3px solid #3d5334;
     color:var(--bone-100);
     font-family:'Press Start 2P', monospace;
-    font-size:8px;
+    font-size:calc(8px * var(--ui));
     display:flex; align-items:center; justify-content:center;
     box-shadow:0 3px 0 #2e3f28, 0 5px 8px rgba(0,0,0,0.5);
     touch-action:none;
@@ -728,7 +732,14 @@
   }
   let scale = 1;
 
+  // phones stay at 1; tablets and desktops scale text up (capped)
+  let UI_SCALE = 1;
   function resize(){
+    const ui = Math.round(Math.max(1, Math.min(1.6, window.innerWidth / 420, window.innerHeight / 640)) * 20) / 20;
+    if (ui !== UI_SCALE){
+      UI_SCALE = ui;
+      document.documentElement.style.setProperty('--ui', ui);
+    }
     const availW = Math.max(160, wrap.clientWidth);
     const availH = Math.max(160, wrap.clientHeight);
     // sprites keep the size they had (scale fits the 360x520 scene); the view
@@ -1245,7 +1256,7 @@
     ctx.globalAlpha = 1;
     // label beyond the arrow tip
     ctx.textAlign = 'center';
-    ctx.font = "8px 'IBM Plex Mono', monospace";
+    ctx.font = "" + 8 * UI_SCALE + "px 'IBM Plex Mono', monospace";
     const lx = player.x + dir.x * (r + 16), ly = player.y + dir.y * (r + 16) + 3;
     ctx.lineWidth = 3;
     ctx.strokeStyle = 'rgba(10,8,7,0.85)';
@@ -1640,7 +1651,7 @@
       ctx.fillStyle = '#1a1614'; ctx.fillRect(bx, by, bw, 5);
       ctx.fillStyle = '#ff4a3a'; ctx.fillRect(bx, by, bw * k, 5);
       ctx.textAlign = 'center';
-      ctx.font = "7px 'IBM Plex Mono', monospace";
+      ctx.font = "" + 7 * UI_SCALE + "px 'IBM Plex Mono', monospace";
       ctx.fillStyle = '#ffb0a0';
       ctx.fillText(BOSS_CAST_NAMES[c.pattern] + ' ' + Math.max(0, c.dur - c.t).toFixed(1) + 's', m.x, by - 3);
       ctx.textAlign = 'left';
@@ -3587,7 +3598,7 @@
       ctx.fillStyle = '#e8c9a0'; ctx.beginPath(); ctx.arc(p.x, p.y - 34 + bob, 6, 0, Math.PI*2); ctx.fill();
     }
     ctx.textAlign = 'center';
-    ctx.font = "7px 'IBM Plex Mono', monospace";
+    ctx.font = "" + 7 * UI_SCALE + "px 'IBM Plex Mono', monospace";
     ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(10,8,7,0.85)';
     ctx.strokeText('พ่อค้า', p.x, p.y - size - 2);
     ctx.fillStyle = '#f0d27a';
@@ -4055,7 +4066,7 @@
         const ry = player.y + 12 - k * 34;
         ctx.beginPath(); ctx.ellipse(player.x, ry, 18 + k * 6, 7 + k * 2, 0, 0, Math.PI*2); ctx.stroke();
         ctx.textAlign = 'center';
-        ctx.font = "bold 10px 'IBM Plex Mono', monospace";
+        ctx.font = "bold " + 10 * UI_SCALE + "px 'IBM Plex Mono', monospace";
         ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(10,8,7,0.9)';
         ctx.strokeText('LEVEL UP', player.x, player.y - 34 - k * 10);
         ctx.fillStyle = '#f0d27a';
@@ -4824,7 +4835,7 @@
     ctx.globalAlpha = 1;
 
     ctx.textAlign = 'center';
-    ctx.font = "9px 'IBM Plex Mono', monospace";
+    ctx.font = "" + 9 * UI_SCALE + "px 'IBM Plex Mono', monospace";
     ctx.fillStyle = 'rgba(239,230,216,0.6)';
     ctx.fillText('ทางออก', cx, door.y + door.h + 16);
     ctx.textAlign = 'left';
@@ -5003,9 +5014,9 @@
     // theme title
     ctx.textAlign = 'center';
     ctx.fillStyle = th.glow;
-    ctx.font = "11px 'Press Start 2P', monospace";
+    ctx.font = "" + 11 * UI_SCALE + "px 'Press Start 2P', monospace";
     ctx.fillText(th.name, ARENA_W/2, gateReady ? 176 : DOOR.y + DOOR.h + 34);
-    ctx.font = "9px 'IBM Plex Mono', monospace";
+    ctx.font = "" + 9 * UI_SCALE + "px 'IBM Plex Mono', monospace";
     ctx.fillStyle = 'rgba(239,230,216,0.55)';
     ctx.fillText('เดินเข้าประตูเพื่อเริ่มต่อสู้', ARENA_W/2, ARENA_H - 20);
     ctx.textAlign = 'left';
@@ -5138,7 +5149,7 @@
 
         if (m.isBoss){
           ctx.textAlign = 'center';
-          ctx.font = "7px 'IBM Plex Mono', monospace";
+          ctx.font = "" + 7 * UI_SCALE + "px 'IBM Plex Mono', monospace";
           ctx.fillStyle = '#e0b84a';
           ctx.fillText(m.name, m.x, m.y - m.size/2 - 15);
           ctx.textAlign = 'left';
@@ -5298,7 +5309,7 @@
       ctx.translate(dn.x, dn.y);
       ctx.scale(pop, pop);
       ctx.globalAlpha = alpha;
-      ctx.font = "bold 13px 'IBM Plex Mono', monospace";
+      ctx.font = "bold " + 13 * UI_SCALE + "px 'IBM Plex Mono', monospace";
       ctx.lineWidth = 3;
       ctx.strokeStyle = 'rgba(10,8,7,0.9)';
       const dnText = dn.text || ((dn.heal ? '+' : '-') + dn.amount);
