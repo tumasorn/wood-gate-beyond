@@ -693,6 +693,7 @@
       <div class="howto-item"><b>สกิล</b> (ปุ่มม่วง หรือคีย์ E) — มอนสเตอร์มีโอกาส 10% ดรอปลูกแก้วสกิล ถือได้ทีละ 1 สกิล มี 6 แบบ ระยะ 1-3 ช่อง (สกิลน้ำแข็งทำให้มอนสเตอร์ในระยะ 3 ช่องเดินช้าลง 50% นาน 3 วินาที) กด + เพื่อใช้แต้มอัพพลังสกิล (+10% ต่อระดับ สูงสุด Lv.20 = +200%) เมื่อพลังเต็มแล้ว ปุ่มจะเปลี่ยนเป็น ♥ ใช้ 1 แต้มแลก HP สูงสุด +5</div>
       <div class="howto-item"><b>ลักษณะมอนสเตอร์</b> — แต่ละชนิดมีคุณสมบัติตามร่างกาย เช่น การ์กอยล์ผิวหินลดดาเมจ 50% วิญญาณโดนอาวุธลด 50% ต้นไม้/ซอมบี้แพ้ไฟ อัศวิน/สไลม์แพ้สายฟ้า เลขสีเทา = ถูกลด • สีส้ม = แพ้ทาง</div>
       <div class="howto-item"><b>มอนสเตอร์โล่</b> — ตัวสีพิเศษเรืองแสงทอง มีโล่ฟ้าเท่ากับ 50% ของเลือด ต้องตีโล่ให้แตกก่อนถึงจะโดนเลือด โผล่ทุก 3 ด่าน และยิ่งอาวุธกับเกราะของคุณแรงเกินด่าน ยิ่งเจอบ่อย (สูงสุด 50%) ให้ EXP 2 เท่า</div>
+      <div class="howto-item"><b>มอนสเตอร์ลาดตระเวน</b> — ตัวถึกที่เดินช้า (ต้นไม้ยักษ์ โกเลม ซอมบี้ การ์กอยล์) จะเดินสุ่มไปมา มีกรวยการมองเห็นสีส้มด้านหน้า ระยะ 5 ช่อง ถ้าเดินเข้ากรวย ชนตัว หรือตีมัน จะขึ้น "!" แล้วไล่ตาม ถ้าหายจากสายตา 3 วินาทีจะขึ้น "?" แล้วกลับไปเดินสุ่ม แอบตีจากด้านหลังได้</div>
       <div class="howto-item"><b>การหลบ</b> — มอนสเตอร์ที่เพิ่งโดนตีมีโอกาสหลบการโจมตีครั้งถัดไป ตัวเร็วอย่างค้างคาว/หมาป่าหลบเก่ง ตัวหินแทบไม่หลบ</div>
       <div class="howto-item"><b>ท่าใหญ่ของบอส</b> — บอสร่าย 1-3 วินาทีพร้อมพื้นที่สีแดงเตือน (ทุบพื้น / อุกกาบาต / ลำแสง) ดาเมจแรงมาก ให้รีบออกจากพื้นที่สีแดง</div>
       <div class="howto-item"><b>เหรียญ & ร้านพ่อค้า</b> — มอนสเตอร์มีโอกาส 20% ดรอป 2 เหรียญ บอสมีโอกาส 40% ดรอป 10 เหรียญ เดินเข้าใกล้พ่อค้าหน้าดันเจียนแล้วกดปุ่ม "ร้าน" (หรือคีย์ F) เพื่อซื้อ ยาโล่พลัง (โล่ 50% ของ HP สูงสุด, 50 เหรียญ, 1 ขวดต่อดันเจียน) • ยาฟื้นพลัง +10 HP (20) • ยาฟื้นพลังใหญ่ +50 HP (100) กดใช้ยาจากปุ่มมุมซ้ายล่าง หรือคีย์ 1 / 2</div>
@@ -1499,6 +1500,7 @@
   // every hit the player lands goes through here: dodge, traits, numbers
   function damageMonster(m, raw, src){
     if (m.hp <= 0) return false;
+    if (m.patrol) alertMonster(m);
     const trait = MONSTER_TRAITS[m.kind];
     if (m.dodgeReady){
       m.dodgeReady = false;
@@ -1678,6 +1680,135 @@
   }
 
   // true when nothing solid sits on the straight line between two points
+  // ---------- Patrolling monsters (the slow, heavy "tank" kinds) ----------
+  // They wander instead of homing in, and only give chase once the player steps
+  // into the cone of sight in front of them (or bumps into / hits them). After a
+  // few seconds without seeing the player they give up and wander again.
+  const VISION_TILES = 5;
+  const VISION_HALF = 35 * Math.PI / 180;     // 70 degree cone
+  const PATROL_SPEED = 0.55;                  // share of normal speed while wandering
+  const PATROL_FORGET = 3;                    // seconds out of sight before giving up
+  function visionRange(){ return VISION_TILES * TILE_SIZE; }
+
+  function canSpotPlayer(m){
+    const dx = player.x - m.x, dy = player.y - m.y, d = Math.hypot(dx, dy);
+    if (d < (m.size + player.size) / 2 + 12) return true;   // right next to it
+    if (d > visionRange()) return false;
+    const f = m.facing || { x: 0, y: 1 };
+    const fl = Math.hypot(f.x, f.y) || 1;
+    if ((dx * f.x + dy * f.y) / (d * fl) < Math.cos(VISION_HALF)) return false;
+    return hasLineOfSight(m.x, m.y, player.x, player.y);
+  }
+
+  function alertMonster(m){
+    if (m.aiState !== 'chase'){
+      m.aiState = 'chase';
+      m.pathRecalcTimer = 0;
+      m.cone = null;
+      floatText(m, '!', '#ffd84a');
+    }
+    m.lostTimer = 0;
+  }
+
+  function pickWanderTarget(m){
+    for (let i = 0; i < 12; i++){
+      const a = rand(0, Math.PI * 2), r = rand(30, 90);
+      const x = m.x + Math.cos(a) * r, y = m.y + Math.sin(a) * r;
+      if (x < m.size || y < m.size || x > WORLD_W - m.size || y > WORLD_H - m.size) continue;
+      if (collidesWalls(x, y, m.size + 4) || !hasLineOfSight(m.x, m.y, x, y)) continue;
+      return { x, y };
+    }
+    return null;
+  }
+
+  // true while the monster is wandering (movement handled here); false once it chases
+  function updatePatrol(m, dt){
+    if (m.aiState === 'chase'){
+      const d = Math.hypot(player.x - m.x, player.y - m.y);
+      // once hunting it keeps track of the player at a longer range than it first spots them
+      if (d < visionRange() * 1.6 && hasLineOfSight(m.x, m.y, player.x, player.y)) m.lostTimer = 0;
+      else if ((m.lostTimer = (m.lostTimer || 0) + dt) > PATROL_FORGET){
+        m.aiState = 'wander';
+        m.wander = null;
+        m.idle = rand(0.8, 1.4);
+        m.lookBase = null;
+        floatText(m, '?', '#c9bda9');
+        return true;
+      }
+      return false;
+    }
+    if (canSpotPlayer(m)){ alertMonster(m); return false; }
+
+    if (m.idle > 0){
+      // stand still and look around
+      m.idle -= dt;
+      m.moving = false;
+      const f = m.facing || { x: 0, y: 1 };
+      if (m.lookBase == null){ m.lookBase = Math.atan2(f.y, f.x); m.lookT = 0; }
+      m.lookT += dt;
+      const a = m.lookBase + Math.sin(m.lookT * 1.6) * 0.9;
+      m.facing = { x: Math.cos(a), y: Math.sin(a) };
+      if (m.idle <= 0){ m.wander = pickWanderTarget(m); m.wanderTime = 0; m.lookBase = null; }
+      return true;
+    }
+    if (!m.wander){
+      m.wander = pickWanderTarget(m);
+      m.wanderTime = 0;
+      if (!m.wander){ m.idle = rand(0.5, 1.2); return true; }
+    }
+    const tx = m.wander.x - m.x, ty = m.wander.y - m.y, td = Math.hypot(tx, ty);
+    m.wanderTime += dt;
+    if (td < 6 || m.wanderTime > 4){
+      m.wander = null;
+      m.idle = rand(0.6, 1.6);
+      m.moving = false;
+      return true;
+    }
+    const chill = m.slowTimer > 0 ? m.slowMult : 1;
+    const step = m.speed * PATROL_SPEED * chill * dt;
+    m.facing = { x: tx / td, y: ty / td };
+    const ox = m.x, oy = m.y;
+    moveMonster(m, tx / td * step, ty / td * step);
+    m.moving = true;
+    if (Math.hypot(m.x - ox, m.y - oy) < step * 0.25) m.wanderTime += 0.5;   // blocked: give up on this spot sooner
+    return true;
+  }
+
+  // the cone of sight, cut short where walls block it (recomputed a few times a second)
+  function drawVisionCone(m){
+    const now = performance.now();
+    if (!m.cone || now - m.cone.at > 90){
+      const f = m.facing || { x: 0, y: 1 };
+      const base = Math.atan2(f.y, f.x), R = visionRange();
+      const pts = [];
+      for (let i = 0; i <= 10; i++){
+        const a = base - VISION_HALF + 2 * VISION_HALF * i / 10;
+        let r = R;
+        for (let st = 8; st <= R; st += 8){
+          if (collidesWalls(m.x + Math.cos(a) * st, m.y + Math.sin(a) * st, 4)){ r = st - 4; break; }
+        }
+        pts.push([Math.cos(a) * r, Math.sin(a) * r]);
+      }
+      m.cone = { at: now, pts };
+    }
+    ctx.save();
+    ctx.translate(m.x, m.y);
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    for (const [x, y] of m.cone.pts) ctx.lineTo(x, y);
+    ctx.closePath();
+    const grad = ctx.createRadialGradient(0, 0, 4, 0, 0, visionRange());
+    grad.addColorStop(0, 'rgba(255,120,40,0.34)');
+    grad.addColorStop(1, 'rgba(255,120,40,0.08)');
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,140,60,0.7)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 3]);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   function hasLineOfSight(ax, ay, bx, by){
     const d = Math.hypot(bx - ax, by - ay);
     const steps = Math.ceil(d / 8);
@@ -1806,6 +1937,10 @@
       hitFlash: 0,
       path: null, pathIndex: 0, pathRecalcTimer: rand(0, 0.4),
       ...rangedFields(def.kind),
+      patrol: type === 'tank',
+      aiState: type === 'tank' ? 'wander' : null,
+      facing: { x: rand(-1, 1), y: rand(-1, 1) },
+      idle: type === 'tank' ? rand(0, 1.5) : 0,
     };
   }
 
@@ -4211,6 +4346,10 @@
         if (m.attackCooldown > 0) m.attackCooldown -= dt;
         continue;
       }
+      if (m.patrol && updatePatrol(m, dt)){
+        if (m.attackCooldown > 0) m.attackCooldown -= dt;
+        continue;
+      }
 
       const dx = player.x - m.x, dy = player.y - m.y;
       const d = Math.sqrt(dx*dx+dy*dy) || 1;
@@ -4865,6 +5004,12 @@
           ctx.strokeStyle = m.projColor; ctx.lineWidth = 2;
           ctx.beginPath(); ctx.arc(m.x, m.y, m.size/2 + 10 - k * 6, 0, Math.PI*2); ctx.stroke();
           ctx.globalAlpha = 1;
+        }
+
+        if (m.patrol && m.aiState !== 'chase' && m.hp > 0 &&
+            m.x > state.camera.x - 140 && m.x < state.camera.x + VIEW_W + 140 &&
+            m.y > state.camera.y - 140 && m.y < state.camera.y + VIEW_H + 140){
+          drawVisionCone(m);
         }
 
         // gold ground glow marking an elite (stays after its shield breaks)
