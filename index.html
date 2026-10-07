@@ -660,7 +660,7 @@
     <div class="shop-list">
       <div class="shop-item">
         <img src="sprites/item_shieldpotion.png" alt="">
-        <div><div class="shop-name">ยาโล่พลัง</div><div class="shop-desc">ได้โล่ 50% ของ HP สูงสุด ใช้ได้ทั้งดันเจียนถัดไป • ซื้อได้ 1 ขวดต่อดันเจียน</div><div class="shop-own" id="shop-own-shield"></div></div>
+        <div><div class="shop-name">ยาโล่พลัง</div><div class="shop-desc">ได้โล่ 50% ของ HP สูงสุด อยู่จนกว่าจะแตก ใช้ข้ามดันเจียนได้ • ซื้อได้ 1 ขวดต่อดันเจียน (ซื้อซ้ำ = เติมโล่ให้เต็ม)</div><div class="shop-own" id="shop-own-shield"></div></div>
         <button class="shop-buy" data-item="shield">50</button>
       </div>
       <div class="shop-item">
@@ -696,7 +696,7 @@
       <div class="howto-item"><b>มอนสเตอร์ลาดตระเวน</b> — ตัวถึกที่เดินช้า (ต้นไม้ยักษ์ โกเลม ซอมบี้ การ์กอยล์) จะเดินสุ่มไปมา มีกรวยการมองเห็นสีส้มด้านหน้า ระยะ 5 ช่อง ถ้าเดินเข้ากรวย ชนตัว หรือตีมัน จะขึ้น "!" แล้วไล่ตาม ถ้าหายจากสายตา 3 วินาทีจะขึ้น "?" แล้วกลับไปเดินสุ่ม แอบตีจากด้านหลังได้</div>
       <div class="howto-item"><b>การหลบ</b> — มอนสเตอร์ที่เพิ่งโดนตีมีโอกาสหลบการโจมตีครั้งถัดไป ตัวเร็วอย่างค้างคาว/หมาป่าหลบเก่ง ตัวหินแทบไม่หลบ</div>
       <div class="howto-item"><b>ท่าใหญ่ของบอส</b> — บอสร่าย 1-3 วินาทีพร้อมพื้นที่สีแดงเตือน (ทุบพื้น / อุกกาบาต / ลำแสง) ดาเมจแรงมาก ให้รีบออกจากพื้นที่สีแดง</div>
-      <div class="howto-item"><b>เหรียญ & ร้านพ่อค้า</b> — มอนสเตอร์มีโอกาส 20% ดรอป 2 เหรียญ บอสมีโอกาส 40% ดรอป 10 เหรียญ เดินเข้าใกล้พ่อค้าหน้าดันเจียนแล้วกดปุ่ม "ร้าน" (หรือคีย์ F) เพื่อซื้อ ยาโล่พลัง (โล่ 50% ของ HP สูงสุด, 50 เหรียญ, 1 ขวดต่อดันเจียน) • ยาฟื้นพลัง +10 HP (20) • ยาฟื้นพลังใหญ่ +50 HP (100) กดใช้ยาจากปุ่มมุมซ้ายล่าง หรือคีย์ 1 / 2</div>
+      <div class="howto-item"><b>เหรียญ & ร้านพ่อค้า</b> — มอนสเตอร์มีโอกาส 20% ดรอป 2 เหรียญ บอสมีโอกาส 40% ดรอป 10 เหรียญ เดินเข้าใกล้พ่อค้าหน้าดันเจียนแล้วกดปุ่ม "ร้าน" (หรือคีย์ F) เพื่อซื้อ ยาโล่พลัง (โล่ 50% ของ HP สูงสุด อยู่จนกว่าจะแตก, 50 เหรียญ, 1 ขวดต่อดันเจียน) • ยาฟื้นพลัง +10 HP (20) • ยาฟื้นพลังใหญ่ +50 HP (100) กดใช้ยาจากปุ่มมุมซ้ายล่าง หรือคีย์ 1 / 2</div>
       <div class="howto-item"><b>หัวใจ</b> — มี 3 ดวง หาก HP หมดจะเสียหัวใจ 1 ดวงแล้วฟื้น HP เต็มไปต่อได้ทันที เกมจะจบจริงเมื่อหัวใจหมดทุกดวง</div>
     </div>
     <button id="howtoBackBtn">กลับ</button>
@@ -3637,8 +3637,13 @@
     if (b && !b.disabled) buyItem(b.dataset.item);
   });
   document.getElementById('shopCloseBtn').addEventListener('click', closeShop);
-  document.getElementById('potionBtn').addEventListener('click', (e)=>{ e.preventDefault(); usePotion('small'); });
-  document.getElementById('hiPotionBtn').addEventListener('click', (e)=>{ e.preventDefault(); usePotion('hi'); });
+  // potions fire on touch-down: a click can arrive late or not at all on phones
+  // while the other thumb is on the joystick
+  for (const [id, kind] of [['potionBtn', 'small'], ['hiPotionBtn', 'hi']]){
+    const btn = document.getElementById(id);
+    btn.addEventListener('pointerdown', (e)=>{ e.preventDefault(); usePotion(kind); });
+    btn.addEventListener('contextmenu', (e)=> e.preventDefault());
+  }
 
   // ---------- Character level ----------
   const LEVEL_HP_BONUS = 5;
@@ -4085,7 +4090,7 @@
     state.entranceProps = state.entranceProps.filter(p => Math.hypot(p.x - ms.x, p.y - ms.y) > 40);
     state.merchant = { npc: true, x: ms.x, y: ms.y };
     state.entranceProps.push(state.merchant);
-    player.shield = 0; player.shieldMax = 0;
+    // a shield bought earlier stays until it breaks; a new one may be bought here
     state.shieldBought = false;
     state.floorTexture = generateFloorTexture(state.theme.key);
     state.ambient = generateAmbient(state.theme.key, 10);
