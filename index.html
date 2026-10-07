@@ -1447,6 +1447,7 @@
 
   function makeElite(m){
     m.elite = true;
+    tintedSprite(m.kind, ELITE_FILTER);
     m.shieldMax = m.shield = Math.max(1, Math.round(m.maxHp * ELITE_SHIELD_SHARE));
     m.shieldHit = 0;
   }
@@ -2665,13 +2666,21 @@
     }
     if (FOUNTAIN_SPRITE.loaded){
       // a used fountain is drawn drained of colour
+      let img = FOUNTAIN_SPRITE.img;
       if (fo.used){
-        if ('filter' in ctx) ctx.filter = 'grayscale(1) brightness(0.6)';
-        else ctx.globalAlpha = 0.5;
+        // drained of colour: a grey copy made once instead of a per-frame filter
+        if (!FOUNTAIN_SPRITE.grey){
+          const c = document.createElement('canvas');
+          c.width = img.naturalWidth; c.height = img.naturalHeight;
+          const g = c.getContext('2d');
+          if ('filter' in g) g.filter = 'grayscale(1) brightness(0.6)';
+          else g.globalAlpha = 0.5;
+          g.drawImage(img, 0, 0);
+          FOUNTAIN_SPRITE.grey = c;
+        }
+        img = FOUNTAIN_SPRITE.grey;
       }
-      ctx.drawImage(FOUNTAIN_SPRITE.img, fo.x - sz/2, fo.y - sz/2, sz, sz);
-      ctx.filter = 'none';
-      ctx.globalAlpha = 1;
+      ctx.drawImage(img, fo.x - sz/2, fo.y - sz/2, sz, sz);
     } else {
       ctx.fillStyle = '#5a5046';
       ctx.beginPath(); ctx.arc(fo.x, fo.y, sz/2 - 2, 0, Math.PI*2); ctx.fill();
@@ -2743,8 +2752,47 @@
     return fy >= 0 ? 'south' : 'north';
   }
 
-  function drawSprite(atlasKey, fx, fy, moving, x, y, drawSize){
-    const atlas = CHARACTER_SPRITES[atlasKey];
+  // Canvas filters (hue shift + drop-shadow glow) are very slow when applied on
+  // every draw, so each sheet that needs one is filtered once into its own canvas,
+  // cell by cell so a sprite's glow never bleeds into its neighbour's frame.
+  const TINTED_SPRITES = {};
+  function tintedSprite(srcKey, filter){
+    const key = srcKey + '|' + filter;
+    if (TINTED_SPRITES[key]) return TINTED_SPRITES[key];
+    const src = CHARACTER_SPRITES[srcKey];
+    if (!src || !src.loaded) return null;
+    const w = src.img.naturalWidth, h = src.img.naturalHeight;
+    const out = document.createElement('canvas');
+    out.width = w; out.height = h;
+    const o = out.getContext('2d');
+    const cell = document.createElement('canvas');
+    cell.width = SPRITE_CELL; cell.height = SPRITE_CELL;
+    const c = cell.getContext('2d');
+    const canFilter = 'filter' in c;
+    for (let sy = 0; sy < h; sy += SPRITE_CELL){
+      for (let sx = 0; sx < w; sx += SPRITE_CELL){
+        c.clearRect(0, 0, SPRITE_CELL, SPRITE_CELL);
+        if (canFilter) c.filter = filter;
+        c.drawImage(src.img, sx, sy, SPRITE_CELL, SPRITE_CELL, 0, 0, SPRITE_CELL, SPRITE_CELL);
+        if (canFilter) c.filter = 'none';
+        o.drawImage(cell, sx, sy);
+      }
+    }
+    const entry = (TINTED_SPRITES[key] = { img: out, loaded: true, w, h });
+    // swap the canvas for an ordinary decoded image (like every other sprite sheet):
+    // drawing from a canvas source can cost a full texture copy per frame
+    if (out.toBlob && window.URL) out.toBlob(blob => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const im = new Image();
+      im.onload = () => { entry.img = im; URL.revokeObjectURL(url); };
+      im.src = url;
+    }, 'image/png');
+    return entry;
+  }
+
+  function drawSprite(atlasKey, fx, fy, moving, x, y, drawSize, atlasOverride){
+    const atlas = atlasOverride || CHARACTER_SPRITES[atlasKey];
     if (!atlas || !atlas.loaded) return false;
     const col = SPRITE_DIR_COL[cardinalDir(fx, fy)];
     const row = moving ? 1 + (Math.floor(performance.now() / 110) % 8) : 0;
@@ -2760,11 +2808,9 @@
   function drawMonsterBody(m){
     const facing = m.facing || {x:0, y:1};
     const drawSize = Math.max(m.size * 2.3, 46);
-    // elites wear different colours with a gold outline
-    const tinted = m.elite && 'filter' in ctx;
-    if (tinted){ ctx.save(); ctx.filter = ELITE_FILTER; }
-    const drew = drawSprite(m.kind, facing.x, facing.y, !!m.moving, m.x, m.y, drawSize);
-    if (tinted) ctx.restore();
+    // elites wear different colours with a gold outline (pre-tinted sheet)
+    const sheet = m.elite ? tintedSprite(m.kind, ELITE_FILTER) : null;
+    const drew = drawSprite(m.kind, facing.x, facing.y, !!m.moving, m.x, m.y, drawSize, sheet);
     if (drew) return;
     if (m.elite){
       ctx.fillStyle = '#ffd84a';
