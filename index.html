@@ -510,6 +510,8 @@
     text-shadow:0 0 12px rgba(224,137,74,0.4);
   }
   #shop-greet{ font-size:12px; color:var(--bone-300); max-width:300px; line-height:1.6; }
+  #shop-slot{ font-size:11px; color:var(--bone-300); }
+  #shop-slot b{ color:var(--torch-300); }
   #shop-coins{ font-family:'Press Start 2P', monospace; font-size:11px; color:#f0d27a; }
   .shop-list{ display:flex; flex-direction:column; gap:8px; width:min(320px, 100%); }
   .shop-item{
@@ -602,8 +604,7 @@
     <div id="banner"></div>
     <div id="drops-panel"></div>
     <div id="quick-slots">
-      <button class="qslot empty" id="potionBtn" aria-label="ใช้ยา +10 HP"><img src="sprites/item_potion.png" alt=""><span class="qcount">0</span></button>
-      <button class="qslot empty" id="hiPotionBtn" aria-label="ใช้ยาใหญ่ +50 HP"><img src="sprites/item_hipotion.png" alt=""><span class="qcount">0</span></button>
+      <button class="qslot empty" id="potionBtn" aria-label="ช่องยา (ว่าง)"><img src="sprites/item_potion.png" alt=""></button>
     </div>
   </div>
 
@@ -657,20 +658,21 @@
     <h1>ร้านพ่อค้า</h1>
     <div id="shop-greet">ก่อนลงดันเจียน แวะซื้อยาไว้ก่อนสิ!</div>
     <div id="shop-coins"></div>
+    <div id="shop-slot"></div>
     <div class="shop-list">
       <div class="shop-item">
         <img src="sprites/item_shieldpotion.png" alt="">
-        <div><div class="shop-name">ยาโล่พลัง</div><div class="shop-desc">ได้โล่ 50% ของ HP สูงสุด อยู่จนกว่าจะแตก ใช้ข้ามดันเจียนได้ • ซื้อได้ 1 ขวดต่อดันเจียน (ซื้อซ้ำ = เติมโล่ให้เต็ม)</div><div class="shop-own" id="shop-own-shield"></div></div>
+        <div><div class="shop-name">ยาโล่พลัง</div><div class="shop-desc">กดใช้แล้วได้โล่ 50% ของ HP สูงสุด อยู่จนกว่าจะแตก</div><div class="shop-own" id="shop-own-shield"></div></div>
         <button class="shop-buy" data-item="shield">50</button>
       </div>
       <div class="shop-item">
         <img src="sprites/item_potion.png" alt="">
-        <div><div class="shop-name">ยาฟื้นพลัง</div><div class="shop-desc">ฟื้น HP +10 เก็บไว้กดใช้ตอนไหนก็ได้</div><div class="shop-own" id="shop-own-small"></div></div>
+        <div><div class="shop-name">ยาฟื้นพลัง</div><div class="shop-desc">กดใช้แล้วฟื้น HP +10</div><div class="shop-own" id="shop-own-small"></div></div>
         <button class="shop-buy" data-item="small">20</button>
       </div>
       <div class="shop-item">
         <img src="sprites/item_hipotion.png" alt="">
-        <div><div class="shop-name">ยาฟื้นพลังใหญ่</div><div class="shop-desc">ฟื้น HP +50 เก็บไว้กดใช้ตอนไหนก็ได้</div><div class="shop-own" id="shop-own-hi"></div></div>
+        <div><div class="shop-name">ยาฟื้นพลังใหญ่</div><div class="shop-desc">กดใช้แล้วฟื้น HP +50</div><div class="shop-own" id="shop-own-hi"></div></div>
         <button class="shop-buy" data-item="hi">100</button>
       </div>
     </div>
@@ -696,7 +698,7 @@
       <div class="howto-item"><b>มอนสเตอร์ลาดตระเวน</b> — ตัวถึกที่เดินช้า (ต้นไม้ยักษ์ โกเลม ซอมบี้ การ์กอยล์) จะเดินสุ่มไปมา มีกรวยการมองเห็นสีส้มด้านหน้า ระยะ 5 ช่อง ถ้าเดินเข้ากรวย ชนตัว หรือตีมัน จะขึ้น "!" แล้วไล่ตาม ถ้าหายจากสายตา 3 วินาทีจะขึ้น "?" แล้วกลับไปเดินสุ่ม แอบตีจากด้านหลังได้</div>
       <div class="howto-item"><b>การหลบ</b> — มอนสเตอร์ที่เพิ่งโดนตีมีโอกาสหลบการโจมตีครั้งถัดไป ตัวเร็วอย่างค้างคาว/หมาป่าหลบเก่ง ตัวหินแทบไม่หลบ</div>
       <div class="howto-item"><b>ท่าใหญ่ของบอส</b> — บอสร่าย 1-3 วินาทีพร้อมพื้นที่สีแดงเตือน (ทุบพื้น / อุกกาบาต / ลำแสง) ดาเมจแรงมาก ให้รีบออกจากพื้นที่สีแดง</div>
-      <div class="howto-item"><b>เหรียญ & ร้านพ่อค้า</b> — มอนสเตอร์มีโอกาส 20% ดรอป 2 เหรียญ บอสมีโอกาส 40% ดรอป 10 เหรียญ เดินเข้าใกล้พ่อค้าหน้าดันเจียนแล้วกดปุ่ม "ร้าน" (หรือคีย์ F) เพื่อซื้อ ยาโล่พลัง (โล่ 50% ของ HP สูงสุด อยู่จนกว่าจะแตก, 50 เหรียญ, 1 ขวดต่อดันเจียน) • ยาฟื้นพลัง +10 HP (20) • ยาฟื้นพลังใหญ่ +50 HP (100) กดใช้ยาจากปุ่มมุมซ้ายล่าง หรือคีย์ 1 / 2</div>
+      <div class="howto-item"><b>เหรียญ & ร้านพ่อค้า</b> — มอนสเตอร์มีโอกาส 20% ดรอป 2 เหรียญ บอสมีโอกาส 40% ดรอป 10 เหรียญ เดินเข้าใกล้พ่อค้าหน้าดันเจียนแล้วกดปุ่ม "ร้าน" (หรือคีย์ F) เพื่อซื้อ ยาโล่พลัง (โล่ 50% ของ HP สูงสุด อยู่จนกว่าจะแตก, 50) • ยาฟื้นพลัง +10 HP (20) • ยาฟื้นพลังใหญ่ +50 HP (100) — มีช่องยาช่องเดียว ซื้อขวดใหม่จะทับขวดเดิม กดใช้จากปุ่มมุมซ้ายล่าง หรือคีย์ 1</div>
       <div class="howto-item"><b>หัวใจ</b> — มี 3 ดวง หาก HP หมดจะเสียหัวใจ 1 ดวงแล้วฟื้น HP เต็มไปต่อได้ทันที เกมจะจบจริงเมื่อหัวใจหมดทุกดวง</div>
     </div>
     <button id="howtoBackBtn">กลับ</button>
@@ -1325,7 +1327,7 @@
     skill: null,        // id of the equipped skill
     skillCooldown: 0,
     coins: 0,
-    potions: { small: 0, hi: 0 },
+    slot: null,                // the one potion carried: 'shield' | 'small' | 'hi' | null
     shield: 0, shieldMax: 0,   // from the shop's shield potion, lasts one dungeon
   };
 
@@ -3533,23 +3535,33 @@
   }
 
   // ---------- Potions ----------
+  // one quick slot holds a single bottle; buying another replaces it
   const POTIONS = {
-    small: { name: 'ยาฟื้นพลัง', heal: 10, price: 20 },
-    hi:    { name: 'ยาฟื้นพลังใหญ่', heal: 50, price: 100 },
+    shield: { name: 'ยาโล่พลัง',      price: 50,  icon: 'item_shieldpotion' },
+    small:  { name: 'ยาฟื้นพลัง',     price: 20,  icon: 'item_potion', heal: 10 },
+    hi:     { name: 'ยาฟื้นพลังใหญ่', price: 100, icon: 'item_hipotion', heal: 50 },
   };
-  const SHIELD_POTION_PRICE = 50, SHIELD_POTION_SHARE = 0.5;
+  const SHIELD_POTION_SHARE = 0.5;
 
-  function usePotion(kind){
+  function useSlot(){
     if (!state.running || state.transition) return;
-    const pot = POTIONS[kind];
-    if (!pot || player.potions[kind] <= 0) return;
-    if (player.hp >= player.maxHp){ showBanner('HP เต็มอยู่แล้ว', 800); return; }
-    player.potions[kind] -= 1;
-    const gain = Math.min(pot.heal, player.maxHp - player.hp);
-    player.hp += gain;
-    spawnParticles(player.x, player.y, '#8fe0a0', 10);
-    state.damageNumbers.push({ x: player.x, y: player.y - player.size/2, vx: 0, vy: -52,
-                               life: 1, maxLife: 1, amount: gain, heal: true });
+    const pot = POTIONS[player.slot];
+    if (!pot) return;
+    if (player.slot === 'shield'){
+      // a fresh shield of 50% max HP (an existing stronger one is kept)
+      player.shieldMax = Math.round(player.maxHp * SHIELD_POTION_SHARE);
+      player.shield = Math.max(player.shield, player.shieldMax);
+      spawnParticles(player.x, player.y, '#9fe8ff', 12);
+      showBanner('โล่พลัง ' + player.shield, 900);
+    } else {
+      if (player.hp >= player.maxHp){ showBanner('HP เต็มอยู่แล้ว', 800); return; }
+      const gain = Math.min(pot.heal, player.maxHp - player.hp);
+      player.hp += gain;
+      spawnParticles(player.x, player.y, '#8fe0a0', 10);
+      state.damageNumbers.push({ x: player.x, y: player.y - player.size/2, vx: 0, vy: -52,
+                                 life: 1, maxLife: 1, amount: gain, heal: true });
+    }
+    player.slot = null;
     updateHud();
   }
 
@@ -3607,28 +3619,27 @@
   }
   function renderShop(){
     document.getElementById('shop-coins').textContent = 'เหรียญของคุณ: ' + player.coins;
-    document.getElementById('shop-own-shield').textContent = state.shieldBought ? 'ซื้อแล้วสำหรับดันเจียนนี้ (โล่ ' + player.shield + ')' : '';
-    document.getElementById('shop-own-small').textContent = 'มีอยู่ ' + player.potions.small + ' ขวด';
-    document.getElementById('shop-own-hi').textContent = 'มีอยู่ ' + player.potions.hi + ' ขวด';
-    shopOverlay.querySelectorAll('.shop-buy').forEach(b=>{
-      const item = b.dataset.item;
-      const price = item === 'shield' ? SHIELD_POTION_PRICE : POTIONS[item].price;
-      b.disabled = player.coins < price || (item === 'shield' && state.shieldBought);
+    const held = POTIONS[player.slot];
+    const slotEl = document.getElementById('shop-slot');
+    // names come from POTIONS above, never from players
+    slotEl.innerHTML = 'ช่องยา: <b>' + (held ? held.name : 'ว่าง') + '</b>' + (held ? ' (ซื้อขวดใหม่จะทับขวดนี้)' : '');
+    for (const item of Object.keys(POTIONS)){
+      const note = document.getElementById('shop-own-' + item);
+      note.textContent = player.slot === item ? 'อยู่ในช่องแล้ว' : held ? 'จะทับ' + held.name : '';
+    }
+    shopOverlay.querySelectorAll('.shop-buy').forEach(btn=>{
+      const item = btn.dataset.item;
+      // no point paying to replace a bottle with the same kind
+      btn.disabled = player.coins < POTIONS[item].price || player.slot === item;
     });
   }
   function buyItem(item){
-    if (item === 'shield'){
-      if (state.shieldBought || player.coins < SHIELD_POTION_PRICE) return;
-      player.coins -= SHIELD_POTION_PRICE;
-      state.shieldBought = true;
-      player.shieldMax = player.shield = Math.round(player.maxHp * SHIELD_POTION_SHARE);
-      showBanner('ได้โล่พลัง ' + player.shield + ' สำหรับดันเจียนนี้', 1300);
-    } else {
-      const pot = POTIONS[item];
-      if (!pot || player.coins < pot.price) return;
-      player.coins -= pot.price;
-      player.potions[item] += 1;
-    }
+    const pot = POTIONS[item];
+    if (!pot || player.coins < pot.price || player.slot === item) return;
+    const old = POTIONS[player.slot];
+    player.coins -= pot.price;
+    player.slot = item;
+    showBanner(old ? old.name + ' → ' + pot.name : 'ได้' + pot.name, 1100);
     renderShop();
     updateHud();
   }
@@ -3639,9 +3650,9 @@
   document.getElementById('shopCloseBtn').addEventListener('click', closeShop);
   // potions fire on touch-down: a click can arrive late or not at all on phones
   // while the other thumb is on the joystick
-  for (const [id, kind] of [['potionBtn', 'small'], ['hiPotionBtn', 'hi']]){
-    const btn = document.getElementById(id);
-    btn.addEventListener('pointerdown', (e)=>{ e.preventDefault(); usePotion(kind); });
+  {
+    const btn = document.getElementById('potionBtn');
+    btn.addEventListener('pointerdown', (e)=>{ e.preventDefault(); useSlot(); });
     btn.addEventListener('contextmenu', (e)=> e.preventDefault());
   }
 
@@ -4090,8 +4101,6 @@
     state.entranceProps = state.entranceProps.filter(p => Math.hypot(p.x - ms.x, p.y - ms.y) > 40);
     state.merchant = { npc: true, x: ms.x, y: ms.y };
     state.entranceProps.push(state.merchant);
-    // a shield bought earlier stays until it breaks; a new one may be bought here
-    state.shieldBought = false;
     state.floorTexture = generateFloorTexture(state.theme.key);
     state.ambient = generateAmbient(state.theme.key, 10);
     state.monsters = [];
@@ -4260,8 +4269,7 @@
     if (e.key===' ') doAttack();
     if (e.key==='e' || e.key==='E' || e.key==='q' || e.key==='Q') doSkill();
     if (e.key==='f' || e.key==='F') doSwap();
-    if (e.key==='1') usePotion('small');
-    if (e.key==='2') usePotion('hi');
+    if (e.key==='1') useSlot();
     // Esc closes the shop without also triggering the pause key handler
     if (e.key==='Escape' && !shopOverlay.classList.contains('hidden')){ closeShop(); e.stopImmediatePropagation(); }
   });
@@ -5380,10 +5388,12 @@
     hudText($hud('score-badge'), 'คะแนน ' + state.score);
     hudText($hud('coin-badge'), player.coins);
     hudStyle($hud('shield-bar-fill'), 'width', (player.shield > 0 ? Math.min(100, player.shield / player.maxHp * 100) : 0) + '%');
-    for (const [id, kind] of [['potionBtn', 'small'], ['hiPotionBtn', 'hi']]){
-      const b = $hud(id);
-      hudText(b._qcount || (b._qcount = b.querySelector('.qcount')), player.potions[kind]);
-      hudClass(b, 'empty', player.potions[kind] <= 0);
+    {
+      const b = $hud('potionBtn');
+      const held = POTIONS[player.slot];
+      hudAttr(b._img || (b._img = b.querySelector('img')), 'src', 'sprites/' + (held ? held.icon : 'item_potion') + '.png');
+      hudClass(b, 'empty', !held);
+      hudAttr(b, 'aria-label', held ? 'ใช้' + held.name : 'ช่องยา (ว่าง)');
     }
     updateDropsPanel();
 
@@ -5942,7 +5952,7 @@
     player.lv = 1; player.xp = 0;
     player.skillPoints = 0; player.skillPower = 0;
     player.skill = null; player.skillCooldown = 0;
-    player.coins = 0; player.potions = { small: 0, hi: 0 };
+    player.coins = 0; player.slot = null;
     player.shield = 0; player.shieldMax = 0;
     player.maxHp = 100; player.hp = player.maxHp;
     state.skillOrbs = []; state.skillFx = [];
