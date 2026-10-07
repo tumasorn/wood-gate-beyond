@@ -381,6 +381,8 @@
   }
   #overlay p{ color:var(--bone-300); font-size:13px; margin:0; line-height:1.7; max-width:280px;}
   #overlay .stat{ color:var(--bone-100); font-weight:600; }
+  #overlay.ending{ background:linear-gradient(180deg, rgba(10,8,7,0.2), rgba(10,8,7,0.82) 45%); }
+  #overlay.ending h1{ color:#ffe08a; font-size:22px; text-shadow:0 0 14px rgba(255,214,120,0.7); line-height:1.5; }
   .name-field{ display:flex; flex-direction:column; align-items:center; gap:6px; width:min(260px, 100%); }
   .name-field label{ font-family:'Press Start 2P', monospace; font-size:9px; color:var(--torch-300); letter-spacing:1px; }
   #playerName{
@@ -409,7 +411,7 @@
   .overlay-actions{
     display:flex; gap:12px; flex-wrap:wrap; justify-content:center;
   }
-  #howtoBtn, #howtoBackBtn{
+  #howtoBtn, #howtoBackBtn, #endMenuBtn{
     font-family:'Press Start 2P', monospace;
     font-size:12px; color:var(--bone-100);
     background:var(--stone-800);
@@ -417,7 +419,7 @@
     padding:14px 22px; border-radius:4px;
     box-shadow:0 4px 0 var(--stone-950);
   }
-  #howtoBtn:active, #howtoBackBtn:active{
+  #howtoBtn:active, #howtoBackBtn:active, #endMenuBtn:active{
     transform:translateY(3px); box-shadow:0 1px 0 var(--stone-950);
   }
 
@@ -734,6 +736,7 @@
 
   // phones stay at 1; tablets and desktops scale text up (capped)
   let UI_SCALE = 1;
+  const FINAL_LEVEL = 100;     // clearing this dungeon opens the gate home
   function resize(){
     const ui = Math.round(Math.max(1, Math.min(1.6, window.innerWidth / 420, window.innerHeight / 640)) * 20) / 20;
     if (ui !== UI_SCALE){
@@ -1317,7 +1320,7 @@
     const lx = player.x + dir.x * (r + 16), ly = player.y + dir.y * (r + 16) + 3;
     ctx.lineWidth = 3;
     ctx.strokeStyle = 'rgba(10,8,7,0.85)';
-    const label = kind === 'exit' ? 'ทางออก' : kind === 'boss' ? 'บอส' : 'มอนสเตอร์ ' + state.guideLeft;
+    const label = kind === 'exit' ? (state.exitDoor && state.exitDoor.final ? 'โลกจริง' : 'ทางออก') : kind === 'boss' ? 'บอส' : 'มอนสเตอร์ ' + state.guideLeft;
     ctx.strokeText(label, lx, ly);
     ctx.fillStyle = color;
     ctx.fillText(label, lx, ly);
@@ -4238,11 +4241,16 @@
     const clearedLevel = state.level;
     state.score += clearedLevel * 10;
     state.level += 1;
-    showBanner('เคลียร์ด่าน! +' + (clearedLevel*10) + ' คะแนน', 1300);
     const ep = state.maze && state.maze.exitPoint;
     state.exitDoor = ep
       ? { x: ep.x - 30, y: ep.y - 25, w: 60, h: 50 }
       : { x: WORLD_W/2 - 30, y: 70, w: 60, h: 50 };
+    if (clearedLevel >= FINAL_LEVEL){
+      state.exitDoor.final = true;   // this one leads back to the real world
+      showBanner('ประตูกลับสู่โลกจริงเปิดแล้ว!', 2200);
+    } else {
+      showBanner('เคลียร์ด่าน! +' + (clearedLevel*10) + ' คะแนน', 1300);
+    }
     updateHud();
   }
 
@@ -4409,6 +4417,7 @@
 
   function update(dt){
     if (state.transition){ updateTransition(dt); return; }
+    if (state.mode === 'ending'){ updateEnding(dt); return; }
     // player movement
     let mx = 0, my = 0;
     if (dirState.up) my -= 1;
@@ -4601,7 +4610,7 @@
       const pbox = {x:player.x-player.size/2, y:player.y-player.size/2, w:player.size, h:player.size};
       if (rectsOverlap(pbox, state.exitDoor)){
         const ed = state.exitDoor;
-        startTransition('warp', ed.x + ed.w/2, ed.y + ed.h/2, enterEntrance);
+        startTransition('warp', ed.x + ed.w/2, ed.y + ed.h/2, ed.final ? enterEnding : enterEntrance);
         return;
       }
     }
@@ -4705,7 +4714,7 @@
       if (tr.t >= TRANS_OUT){
         state.transition = null;
         tr.action();
-        beginArrival(tr.kind === 'warp' ? '#7fe0ff' : themeGlow());
+        if (state.mode !== 'ending') beginArrival(tr.kind === 'warp' ? '#7fe0ff' : themeGlow());
       }
     } else if (tr.t >= TRANS_IN){
       state.transition = null;
@@ -4866,6 +4875,7 @@
 
   // ---------- Exit portal (appears after clearing the arena) ----------
   function drawExitPortal(theme, door){
+    if (door.final) theme = HOME_GATE_THEME;
     const cx = door.x + door.w/2, cy = door.y + door.h/2;
     const t = performance.now() / 1000;
     const pulse = 0.55 + Math.sin(t*3) * 0.18;
@@ -4894,7 +4904,7 @@
     ctx.textAlign = 'center';
     ctx.font = "" + 9 * UI_SCALE + "px 'IBM Plex Mono', monospace";
     ctx.fillStyle = 'rgba(239,230,216,0.6)';
-    ctx.fillText('ทางออก', cx, door.y + door.h + 16);
+    if (!door.noLabel) ctx.fillText(door.final ? 'กลับสู่โลกจริง' : 'ทางออก', cx, door.y + door.h + 16);
     ctx.textAlign = 'left';
   }
 
@@ -5081,6 +5091,7 @@
 
   // ---------- Draw ----------
   function draw(){
+    if (state.mode === 'ending'){ drawEnding(); return; }
     ctx.clearRect(0,0,VIEW_W,VIEW_H);
     ctx.fillStyle = state.mode === 'entrance' && state.theme ? state.theme.wall : '#0a0807';
     ctx.fillRect(0,0,VIEW_W,VIEW_H);
@@ -5297,43 +5308,7 @@
       ctx.globalAlpha = 1;
     }
 
-    // player (pixel-art sprite)
-    ctx.save();
-    applyHeroTransition();
-
-    const playerWalking = (dirState.up||dirState.down||dirState.left||dirState.right) && !player.isAttacking;
-
-    if (player.invuln > 0 && Math.floor(player.invuln*20)%2===0){
-      ctx.globalAlpha *= 0.4;
-    }
-
-    // shadow on floor
-    ctx.fillStyle = 'rgba(0,0,0,0.35)';
-    ctx.beginPath();
-    ctx.ellipse(player.x, player.y + 13, 11, 4, 0, 0, Math.PI*2);
-    ctx.fill();
-
-    const heroDrawSize = Math.max(player.size * 2.6, 52);
-    const heroX = player.x, heroY = player.y - heroDrawSize*0.06;
-    const heroDir = cardinalDir(player.facing.x, player.facing.y);
-    const armorKey = ARMOR_ATLAS_KEY[player.armorRarity] || 'armor_starter';
-    const atkT = player.isAttacking ? clamp(1 - player.attackTimer / player.attackDuration, 0, 1) : null;
-    // the armor sprites are drawn unarmed; the old 'hero' sprite has a sword baked
-    // in, so it is never used as a fallback (that would double up with the held weapon)
-    const armorReady = !!(CHARACTER_SPRITES[armorKey] && CHARACTER_SPRITES[armorKey].loaded);
-    let heroDrew = false;
-    if (armorReady){
-      // weapon held behind the body when facing away
-      drawHeldWeapon(player.weaponIcon, heroDir, heroX, heroY, heroDrawSize, atkT, true);
-      heroDrew = drawSprite(armorKey, player.facing.x, player.facing.y, playerWalking || player.isAttacking, heroX, heroY, heroDrawSize);
-      drawHeldWeapon(player.weaponIcon, heroDir, heroX, heroY, heroDrawSize, atkT, false);
-    }
-    if (!heroDrew){
-      ctx.fillStyle = '#5c7a52';
-      ctx.beginPath(); ctx.arc(player.x, player.y, player.size/2, 0, Math.PI*2); ctx.fill();
-    }
-
-    ctx.restore();
+    drawHero((dirState.up||dirState.down||dirState.left||dirState.right) && !player.isAttacking);
 
     if (state.mode === 'arena') drawSkillFx();
     if (player.shield > 0 && !state.transition){
@@ -5388,6 +5363,44 @@
     }
 
     drawTransitionScreen();
+  }
+
+  // ---------- Hero sprite (armour + held weapon) ----------
+  function drawHero(playerWalking){
+    ctx.save();
+    applyHeroTransition();
+
+    if (player.invuln > 0 && Math.floor(player.invuln*20)%2===0){
+      ctx.globalAlpha *= 0.4;
+    }
+
+    // shadow on floor
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath();
+    ctx.ellipse(player.x, player.y + 13, 11, 4, 0, 0, Math.PI*2);
+    ctx.fill();
+
+    const heroDrawSize = Math.max(player.size * 2.6, 52);
+    const heroX = player.x, heroY = player.y - heroDrawSize*0.06;
+    const heroDir = cardinalDir(player.facing.x, player.facing.y);
+    const armorKey = ARMOR_ATLAS_KEY[player.armorRarity] || 'armor_starter';
+    const atkT = player.isAttacking ? clamp(1 - player.attackTimer / player.attackDuration, 0, 1) : null;
+    // the armor sprites are drawn unarmed; the old 'hero' sprite has a sword baked
+    // in, so it is never used as a fallback (that would double up with the held weapon)
+    const armorReady = !!(CHARACTER_SPRITES[armorKey] && CHARACTER_SPRITES[armorKey].loaded);
+    let heroDrew = false;
+    if (armorReady){
+      // weapon held behind the body when facing away
+      drawHeldWeapon(player.weaponIcon, heroDir, heroX, heroY, heroDrawSize, atkT, true);
+      heroDrew = drawSprite(armorKey, player.facing.x, player.facing.y, playerWalking || player.isAttacking, heroX, heroY, heroDrawSize);
+      drawHeldWeapon(player.weaponIcon, heroDir, heroX, heroY, heroDrawSize, atkT, false);
+    }
+    if (!heroDrew){
+      ctx.fillStyle = '#5c7a52';
+      ctx.beginPath(); ctx.arc(player.x, player.y, player.size/2, 0, Math.PI*2); ctx.fill();
+    }
+
+    ctx.restore();
   }
 
   // ---------- HUD ----------
@@ -5485,10 +5498,11 @@
       hudClass(swapBtn, 'available', canTalk);
       hudText(swapBtn, canTalk ? 'ร้าน' : 'เก็บ');
     } else {
-      hudText(countEl, state.exitDoor
-        ? 'เคลียร์แล้ว! เดินเข้าประตูทางออก'
+      hudText(countEl, state.mode === 'ending' ? 'กลับสู่โลกจริงแล้ว'
+        : state.exitDoor
+        ? (state.exitDoor.final ? 'เคลียร์ครบ ' + FINAL_LEVEL + ' ดันเจียน! เดินเข้าประตูกลับโลกจริง' : 'เคลียร์แล้ว! เดินเข้าประตูทางออก')
         : 'มอนสเตอร์เหลือ: ' + state.monsters.length);
-      hudClass(attackBtn, 'disabled', false);
+      hudClass(attackBtn, 'disabled', state.mode === 'ending');
       hudClass(swapBtn, 'available', !!findNearbyPickup());
       hudText(swapBtn, 'เก็บ');
     }
@@ -5605,6 +5619,7 @@
   // back to the title screen (fresh copy of the start menu, leaderboard included)
   function showMainMenu(){
     state.running = false;
+    overlay.classList.remove('ending');
     overlay.innerHTML = MENU_HTML;
     bindStartMenu();
     document.getElementById('howtoBtn').addEventListener('click', openHowtoFromMenu);
@@ -5950,7 +5965,7 @@
       if (!shared) lbEmptyRow(top, (lb.ready && supa.ok === false) ? 'เชื่อมต่อตารางรวมไม่ได้ตอนนี้ (ออฟไลน์?) คะแนนจะเก็บในเครื่องไว้ก่อน' : 'กำลังโหลด...');
       else if (!others.length) lbEmptyRow(top, 'ยังไม่มีผู้เล่นอื่นบันทึกคะแนน');
       else others.forEach((r, i) => lbAddRow(top,
-        [String(i + 1), cleanName(r.name) || (profiles[r.id] && profiles[r.id].name) || 'นักผจญภัย', String(r.score), 'ด่าน ' + (r.level || '-')], false));
+        [String(i + 1), cleanName(r.name) || (profiles[r.id] && profiles[r.id].name) || 'นักผจญภัย', String(r.score), (r.level > FINAL_LEVEL ? 'จบเกม' : 'ด่าน ' + (r.level || '-'))], false));
       box.querySelector('.lb-top-note').textContent = shared ? 'สถิติดีสุดของผู้เล่นแต่ละคน (ไม่รวมคุณ)' : '';
 
       // --- my scores ---
@@ -5974,11 +5989,166 @@
       mine.textContent = '';
       if (!local.length) lbEmptyRow(mine, 'ยังไม่มีคะแนน เล่นให้จบสักรอบ!');
       else local.forEach((r, i) => lbAddRow(mine,
-        [String(i + 1), fmtDate(r.at), String(r.score), 'ด่าน ' + (r.level || '-')], r.at === lb.lastAt));
+        [String(i + 1), fmtDate(r.at), String(r.score), (r.level > FINAL_LEVEL ? 'จบเกม' : 'ด่าน ' + (r.level || '-'))], r.at === lb.lastAt));
       box.querySelector('.lb-mine-note').textContent = '10 รอบที่ดีที่สุดบนเครื่องนี้';
     }
   }
   lbInit();
+
+  // ---------- Ending: back through the gate to the real world ----------
+  const HOME_GATE_THEME = { glow: '#ffe08a' };
+  const ENDING_BG = { img: new Image(), loaded: false };
+  ENDING_BG.img.onload = ()=>{ ENDING_BG.loaded = true; };
+  ENDING_BG.img.src = 'sprites/ending_city.png';
+  // scene layout as fractions of the city picture: the gate opens on the road
+  // at the bottom, the hero walks up into the plaza, then turns around
+  const END_GATE = { x: 0.5, y: 0.88 }, END_STOP = { x: 0.5, y: 0.72 };
+  const END_WALK_FROM = 0.7, END_WALK_TO = 3.6, END_TURN = 4.3, END_TEXT = 4.6, END_MENU = 7.5;
+
+  function enterEnding(){
+    state.mode = 'ending';
+    state.ending = { t: 0, confetti: [], menuShown: false };
+    state.monsters = []; state.projectiles = []; state.particles = []; state.damageNumbers = [];
+    state.exitDoor = null;
+    state.guideDir = null;
+    player.isAttacking = false; player.invuln = 0;
+    player.facing.x = 0; player.facing.y = -1;
+    releaseControls();
+    updateHud();
+    updateDropsPanel();
+    // the run is over: save it now, so leaving early still keeps the score
+    lbSubmit(state.score, state.level, player.lv);
+  }
+
+  function updateEnding(dt){
+    const e = state.ending;
+    e.t += dt;
+    if (e.t >= END_TURN){ player.facing.x = 0; player.facing.y = 1; }
+    if (e.t >= END_TEXT){
+      // gentle confetti once the message is up
+      if (e.confetti.length < 70 && Math.random() < dt * 40){
+        e.confetti.push({ x: Math.random(), y: -0.05, vy: rand(0.05, 0.12), vx: rand(-0.03, 0.03),
+                          spin: rand(0, Math.PI*2), color: ['#ffe08a','#ff8a70','#7fe0ff','#8fe0a0','#efe6d8'][randInt(0, 4)] });
+      }
+      for (const c of e.confetti){ c.x += c.vx * dt; c.y += c.vy * dt; c.spin += dt * 6; }
+      e.confetti = e.confetti.filter(c => c.y < 1.05);
+    }
+    if (e.t >= END_MENU && !e.menuShown){ e.menuShown = true; showEndingMenu(); }
+  }
+
+  function drawEnding(){
+    const e = state.ending || { t: 0, confetti: [] };
+    const t = e.t;
+    ctx.fillStyle = '#0a0807';
+    ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+    // the city picture fits the view's height; a dimmed, stretched copy fills the sides
+    const iw = ENDING_BG.img.naturalWidth || 280, ih = ENDING_BG.img.naturalHeight || 400;
+    const k = Math.min(VIEW_H / ih, VIEW_W / iw * 1.6);
+    const rw = iw * k, rh = ih * k, rx = (VIEW_W - rw) / 2, ry = (VIEW_H - rh) / 2;
+    ctx.imageSmoothingEnabled = false;
+    if (ENDING_BG.loaded){
+      if (rw < VIEW_W){
+        const ck = Math.max(VIEW_W / iw, VIEW_H / ih);
+        ctx.globalAlpha = 0.45;
+        ctx.drawImage(ENDING_BG.img, (VIEW_W - iw * ck) / 2, (VIEW_H - ih * ck) / 2, iw * ck, ih * ck);
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = 'rgba(10,8,7,0.45)';
+        ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+      }
+      ctx.drawImage(ENDING_BG.img, rx, ry, rw, rh);
+    } else {
+      ctx.fillStyle = '#3a2a24'; ctx.fillRect(rx, ry, rw, rh);
+    }
+    const px = f => rx + f * rw, py = f => ry + f * rh;
+
+    // the gate home: open while the hero steps out, then folds away
+    const gateK = t < 2.6 ? 1 : Math.max(0, 1 - (t - 2.6) / 1.2);
+    if (gateK > 0){
+      const gx = px(END_GATE.x), gy = py(END_GATE.y);
+      ctx.save();
+      ctx.translate(gx, gy); ctx.scale(gateK, gateK); ctx.translate(-gx, -gy);
+      drawExitPortal(HOME_GATE_THEME, { x: gx - 30, y: gy - 25, w: 60, h: 50, final: true, noLabel: true });
+      ctx.restore();
+    }
+
+    // the hero walks up the road into the plaza
+    const wk = clamp((t - END_WALK_FROM) / (END_WALK_TO - END_WALK_FROM), 0, 1);
+    const fx = END_GATE.x + (END_STOP.x - END_GATE.x) * wk;
+    const fy = END_GATE.y + (END_STOP.y - END_GATE.y) * wk;
+    const appear = clamp((t - 0.3) / 0.6, 0, 1);
+    if (appear > 0){
+      const sx = player.x, sy = player.y;
+      player.x = px(fx); player.y = py(fy);
+      ctx.save();
+      ctx.globalAlpha = appear;
+      drawHero(t > END_WALK_FROM && t < END_WALK_TO);
+      ctx.restore();
+      player.x = sx; player.y = sy;
+    }
+
+    // warm evening light over everything
+    const glow = ctx.createLinearGradient(0, 0, 0, VIEW_H);
+    glow.addColorStop(0, 'rgba(255,190,110,0.18)');
+    glow.addColorStop(1, 'rgba(255,190,110,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+
+    // confetti
+    for (const c of e.confetti){
+      ctx.save();
+      ctx.translate(c.x * VIEW_W, c.y * VIEW_H);
+      ctx.rotate(c.spin);
+      ctx.fillStyle = c.color;
+      ctx.fillRect(-2, -1, 4, 2);
+      ctx.restore();
+    }
+
+    // the message
+    const tk = clamp((t - END_TEXT) / 0.8, 0, 1);
+    if (tk > 0 && !e.menuShown){
+      ctx.save();
+      ctx.globalAlpha = tk;
+      ctx.textAlign = 'center';
+      const cy = py(0.3) - (1 - tk) * 10;
+      ctx.fillStyle = 'rgba(10,8,7,0.55)';
+      ctx.fillRect(0, cy - 34 * UI_SCALE, VIEW_W, 62 * UI_SCALE);
+      ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(10,8,7,0.9)';
+      ctx.font = "" + 18 * UI_SCALE + "px 'Press Start 2P', 'IBM Plex Mono', monospace";
+      ctx.strokeText('ยินดีด้วย!', VIEW_W / 2, cy - 6 * UI_SCALE);
+      ctx.fillStyle = '#ffe08a';
+      ctx.fillText('ยินดีด้วย!', VIEW_W / 2, cy - 6 * UI_SCALE);
+      ctx.font = "bold " + 12 * UI_SCALE + "px 'IBM Plex Mono', monospace";
+      ctx.strokeText('คุณเคลียร์เกมสำเร็จ', VIEW_W / 2, cy + 16 * UI_SCALE);
+      ctx.fillStyle = '#efe6d8';
+      ctx.fillText('คุณเคลียร์เกมสำเร็จ', VIEW_W / 2, cy + 16 * UI_SCALE);
+      ctx.restore();
+    }
+
+    // white flash from the gate, fading as the scene opens
+    const flash = clamp(1 - t / 1.2, 0, 1);
+    if (flash > 0){
+      ctx.fillStyle = 'rgba(255,248,225,' + flash + ')';
+      ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+    }
+  }
+
+  function showEndingMenu(){
+    state.running = false;
+    overlay.innerHTML = `
+      <h1>ยินดีด้วย!<br>คุณเคลียร์เกมสำเร็จ</h1>
+      <p>${state.playerName ? 'ผู้เล่น <span class="stat" id="goName"></span><br>' : ''}กลับสู่โลกจริงหลังผ่านครบ <span class="stat">${FINAL_LEVEL}</span> ดันเจียน<br>
+      คะแนนรวม <span class="stat">${state.score}</span> • เลเวลตัวละคร <span class="stat">${player.lv}</span></p>
+      <div class="overlay-actions"><button id="restartBtn">ผจญภัยอีกครั้ง</button><button id="endMenuBtn">กลับเมนู</button></div>
+      <div class="lb"><div class="lb-title">ตารางคะแนน</div><div class="lb-tabs"><button class="lb-tab" data-tab="top">ผู้เล่นอื่น</button><button class="lb-tab" data-tab="mine">คะแนนของฉัน</button></div><div class="lb-panel" data-panel="top"><ol class="lb-list lb-top"><li class="lb-empty">กำลังโหลด...</li></ol><div class="lb-note lb-top-note"></div></div><div class="lb-panel" data-panel="mine" hidden><div class="lb-mine-sum"></div><ol class="lb-list lb-mine"></ol><div class="lb-note lb-mine-note"></div></div></div>
+    `;
+    overlay.classList.add('ending');
+    overlay.classList.remove('hidden');
+    const goName = document.getElementById('goName');
+    if (goName) goName.textContent = state.playerName;   // typed by the player: never as HTML
+    document.getElementById('restartBtn').addEventListener('click', startGame, {once:true});
+    document.getElementById('endMenuBtn').addEventListener('click', showMainMenu, {once:true});
+    lbRender();
+  }
 
   function gameOver(){
     state.running = false;
@@ -6024,7 +6194,9 @@
     player.shield = 0; player.shieldMax = 0;
     player.maxHp = 100; player.hp = player.maxHp;
     state.skillOrbs = []; state.skillFx = [];
+    state.ending = null;
     overlay.classList.add('hidden');
+    overlay.classList.remove('ending');
     resize();
     state.transition = null;
     enterEntrance();
