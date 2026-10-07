@@ -2706,18 +2706,26 @@
     const list = ARENA_DECALS[state.maze.key];
     if (!list) return;
     const camX = state.camera.x, camY = state.camera.y;
+    // reset to the camera transform per decal instead of a full save/restore
+    const base = ctx.getTransform();
     for (const d of state.maze.decals){
       if (d.x < camX - 40 || d.x > camX + VIEW_W + 40 || d.y < camY - 40 || d.y > camY + VIEW_H + 40) continue;
       const entry = list[d.sprite];
       if (!entry || !entry.loaded) continue;
-      ctx.save();
       ctx.globalAlpha = d.alpha;
+      const half = d.size / 2;
+      if (!d.rot && d.flip === 1){
+        // most decals are unrotated: draw straight in world space
+        ctx.drawImage(entry.img, d.x - half, d.y - half, d.size, d.size);
+        continue;
+      }
       ctx.translate(d.x, d.y);
-      ctx.rotate(d.rot);
-      ctx.scale(d.flip, 1);
-      ctx.drawImage(entry.img, -d.size/2, -d.size/2, d.size, d.size);
-      ctx.restore();
+      if (d.rot) ctx.rotate(d.rot);
+      if (d.flip !== 1) ctx.scale(d.flip, 1);
+      ctx.drawImage(entry.img, -half, -half, d.size, d.size);
+      ctx.setTransform(base);
     }
+    ctx.globalAlpha = 1;
   }
 
   // ---------- PixelLab dungeon entrance gateways (one per entrance theme) ----------
@@ -4669,10 +4677,27 @@
     const maxR = Math.hypot(VIEW_W, VIEW_H);
     if (radius >= maxR) return;
     const B = IRIS_BLOCK;
-    for (let by = 0; by < VIEW_H; by += B){
-      for (let bx = 0; bx < VIEW_W; bx += B){
-        const d = Math.hypot(bx + B/2 - cx, by + B/2 - cy);
-        if (d <= radius - B * 1.5) continue;
+    // everything well outside the circle is black: one even-odd fill with a round
+    // hole a block wider than the iris, then square blocks only along the edge so
+    // it keeps its pixelated rim (thousands fewer fillRects per frame)
+    const hole = radius + B;
+    ctx.fillStyle = '#050404';
+    ctx.beginPath();
+    ctx.rect(0, 0, VIEW_W, VIEW_H);
+    if (hole > 0) ctx.arc(cx, cy, hole, 0, Math.PI * 2);
+    ctx.fill('evenodd');
+    if (hole <= 0) return;
+    const inner = radius - B * 1.5, outer = radius + B * 2;
+    const by0 = Math.max(0, Math.floor((cy - outer) / B) * B), by1 = Math.min(VIEW_H, cy + outer);
+    for (let by = by0; by < by1; by += B){
+      const dy = by + B/2 - cy;
+      if (Math.abs(dy) > outer) continue;
+      // only the columns this row's ring band can reach
+      const span = Math.sqrt(Math.max(0, outer * outer - dy * dy));
+      const bx0 = Math.max(0, Math.floor((cx - span) / B) * B), bx1 = Math.min(VIEW_W, cx + span + B);
+      for (let bx = bx0; bx < bx1; bx += B){
+        const d = Math.hypot(bx + B/2 - cx, dy);
+        if (d <= inner || d > outer) continue;
         // +1 overlap so the scaled canvas leaves no hairline seams between blocks
         if (d > radius){ ctx.fillStyle = '#050404'; ctx.fillRect(bx, by, B + 1, B + 1); }
         else {
@@ -4752,7 +4777,11 @@
     const mazeTex = state.maze ? MAZE_TEXTURES[state.maze.key] : null;
 
     ctx.fillStyle = (mazeTex && mazeTex.floorPattern) || '#211c19';
-    ctx.fillRect(0,0,WORLD_W,WORLD_H);
+    // only the visible part of the world (the pattern stays anchored to the world
+    // origin, so the tiles line up exactly as before); 8px spare covers screen shake
+    const fx0 = Math.max(0, state.camera.x - 8), fy0 = Math.max(0, state.camera.y - 8);
+    const fx1 = Math.min(WORLD_W, state.camera.x + VIEW_W + 8), fy1 = Math.min(WORLD_H, state.camera.y + VIEW_H + 8);
+    if (fx1 > fx0 && fy1 > fy0) ctx.fillRect(fx0, fy0, fx1 - fx0, fy1 - fy0);
 
     if (!mazeTex || !mazeTex.floorPattern){
       ctx.strokeStyle = 'rgba(255,255,255,0.03)';
@@ -5284,96 +5313,111 @@
     panel.innerHTML = html;
   }
 
+  // The HUD is refreshed every frame, but the page is only touched when a value
+  // actually changes: rewriting identical text/styles still makes the browser
+  // redo style and layout work, which is costly on phones.
+  const hudEls = {};
+  const $hud = id => hudEls[id] || (hudEls[id] = document.getElementById(id));
+  function hudText(el, v){ v = String(v); if (el._hudText !== v){ el._hudText = v; el.textContent = v; } }
+  function hudStyle(el, prop, v){ const k = '_hudStyle_' + prop; if (el[k] !== v){ el[k] = v; el.style[prop] = v; } }
+  function hudClass(el, cls, on){ on = !!on; const k = '_hudClass_' + cls; if (el[k] !== on){ el[k] = on; el.classList.toggle(cls, on); } }
+  function hudAttr(el, name, v){ const k = '_hudAttr_' + name; if (el[k] !== v){ el[k] = v; if (v === null) el.removeAttribute(name); else el.setAttribute(name, v); } }
+  function hudProp(el, name, v){ const k = '_hudProp_' + name; if (el[k] !== v){ el[k] = v; el[name] = v; } }
+
   function updateHud(){
-    document.getElementById('level-badge').textContent = 'ดันเจียน Lv.' + state.level;
-    document.getElementById('score-badge').textContent = 'คะแนน ' + state.score;
-    document.getElementById('coin-badge').textContent = player.coins;
-    document.getElementById('shield-bar-fill').style.width = (player.shield > 0 ? Math.min(100, player.shield / player.maxHp * 100) : 0) + '%';
+    hudText($hud('level-badge'), 'ดันเจียน Lv.' + state.level);
+    hudText($hud('score-badge'), 'คะแนน ' + state.score);
+    hudText($hud('coin-badge'), player.coins);
+    hudStyle($hud('shield-bar-fill'), 'width', (player.shield > 0 ? Math.min(100, player.shield / player.maxHp * 100) : 0) + '%');
     for (const [id, kind] of [['potionBtn', 'small'], ['hiPotionBtn', 'hi']]){
-      const b = document.getElementById(id);
-      b.querySelector('.qcount').textContent = player.potions[kind];
-      b.classList.toggle('empty', player.potions[kind] <= 0);
+      const b = $hud(id);
+      hudText(b._qcount || (b._qcount = b.querySelector('.qcount')), player.potions[kind]);
+      hudClass(b, 'empty', player.potions[kind] <= 0);
     }
     updateDropsPanel();
 
-    const heartsEl = document.getElementById('hearts-row');
-    let heartsHtml = '';
-    for (let i=0; i<player.maxHearts; i++){
-      heartsHtml += `<span class="heart-icon${i < player.hearts ? '' : ' empty'}">♥</span>`;
+    // hearts are rebuilt only when the count changes
+    const heartsKey = player.hearts + '/' + player.maxHearts;
+    const heartsEl = $hud('hearts-row');
+    if (heartsEl._hudHearts !== heartsKey){
+      heartsEl._hudHearts = heartsKey;
+      let heartsHtml = '';
+      for (let i=0; i<player.maxHearts; i++){
+        heartsHtml += `<span class="heart-icon${i < player.hearts ? '' : ' empty'}">♥</span>`;
+      }
+      heartsEl.innerHTML = heartsHtml;
     }
-    heartsEl.innerHTML = heartsHtml;
 
-    const countEl = document.getElementById('monster-count');
+    const countEl = $hud('monster-count');
     if (state.mode === 'entrance'){
-      countEl.textContent = (state.theme ? state.theme.name : '') + ' • เดินเข้าประตูเพื่อเริ่มต่อสู้';
-      attackBtn.classList.add('disabled');
-      attackBtn.textContent = 'โจมตี';
+      hudText(countEl, (state.theme ? state.theme.name : '') + ' • เดินเข้าประตูเพื่อเริ่มต่อสู้');
+      hudClass(attackBtn, 'disabled', true);
       const canTalk = nearMerchant();
-      swapBtn.classList.toggle('available', canTalk);
-      swapBtn.textContent = canTalk ? 'ร้าน' : 'เก็บ';
+      hudClass(swapBtn, 'available', canTalk);
+      hudText(swapBtn, canTalk ? 'ร้าน' : 'เก็บ');
     } else {
-      countEl.textContent = state.exitDoor
+      hudText(countEl, state.exitDoor
         ? 'เคลียร์แล้ว! เดินเข้าประตูทางออก'
-        : 'มอนสเตอร์เหลือ: ' + state.monsters.length;
-      attackBtn.classList.remove('disabled');
-      attackBtn.textContent = 'โจมตี';
-      swapBtn.classList.toggle('available', !!findNearbyPickup());
-      swapBtn.textContent = 'เก็บ';
+        : 'มอนสเตอร์เหลือ: ' + state.monsters.length);
+      hudClass(attackBtn, 'disabled', false);
+      hudClass(swapBtn, 'available', !!findNearbyPickup());
+      hudText(swapBtn, 'เก็บ');
     }
+    hudText(attackBtn, 'โจมตี');
     // character level + skill
-    document.getElementById('char-level').textContent = 'Lv.' + player.lv;
+    hudText($hud('char-level'), 'Lv.' + player.lv);
     const need = xpToNext(player.lv);
-    document.getElementById('xp-bar-fill').style.width = Math.min(100, player.xp / need * 100) + '%';
-    document.getElementById('xp-text').textContent = player.xp + '/' + need;
+    hudStyle($hud('xp-bar-fill'), 'width', Math.min(100, player.xp / need * 100) + '%');
+    hudText($hud('xp-text'), player.xp + '/' + need);
     const sdef = player.skill ? SKILLS[player.skill] : null;
-    const icon = document.getElementById('skill-icon');
-    const btnIcon = document.getElementById('skillBtnIcon');
+    const icon = $hud('skill-icon');
+    const btnIcon = $hud('skillBtnIcon');
     if (sdef){
       const src = 'sprites/orb_' + player.skill + '.png';
-      if (icon.getAttribute('src') !== src){ icon.setAttribute('src', src); btnIcon.setAttribute('src', src); }
-      icon.classList.remove('empty');
-      btnIcon.style.display = '';
+      hudAttr(icon, 'src', src);
+      hudAttr(btnIcon, 'src', src);
+      hudClass(icon, 'empty', false);
+      hudStyle(btnIcon, 'display', '');
     } else {
-      icon.removeAttribute('src'); icon.classList.add('empty');
-      btnIcon.style.display = 'none';
+      hudAttr(icon, 'src', null);
+      hudClass(icon, 'empty', true);
+      hudStyle(btnIcon, 'display', 'none');
     }
     const powerMaxed = player.skillPower >= SKILL_POWER_MAX;
     const powerTxt = 'พลัง Lv.' + player.skillPower + '/' + SKILL_POWER_MAX + (player.skillPower ? ' (+' + player.skillPower * 10 + '%)' : '') + (powerMaxed ? ' MAX' : '');
-    document.getElementById('skill-label').textContent = (sdef ? sdef.name : 'ยังไม่มีสกิล') + ' • ' + powerTxt;
-    document.getElementById('skill-points').textContent = 'แต้ม ' + player.skillPoints;
-    const upBtn = document.getElementById('skillUpBtn');
-    upBtn.disabled = !(player.skillPoints > 0);
+    hudText($hud('skill-label'), (sdef ? sdef.name : 'ยังไม่มีสกิล') + ' • ' + powerTxt);
+    hudText($hud('skill-points'), 'แต้ม ' + player.skillPoints);
+    const upBtn = $hud('skillUpBtn');
+    hudProp(upBtn, 'disabled', !(player.skillPoints > 0));
     // after MAX the button turns points into HP, and shows a heart
-    upBtn.textContent = powerMaxed ? '♥' : '+';
-    upBtn.classList.toggle('to-hp', powerMaxed);
-    upBtn.setAttribute('aria-label', powerMaxed ? 'แปลงแต้มสกิลเป็น HP +' + SKILL_POINT_HP : 'อัพพลังสกิล');
-    const cdEl = skillBtn.querySelector('.skill-cd');
+    hudText(upBtn, powerMaxed ? '♥' : '+');
+    hudClass(upBtn, 'to-hp', powerMaxed);
+    hudAttr(upBtn, 'aria-label', powerMaxed ? 'แปลงแต้มสกิลเป็น HP +' + SKILL_POINT_HP : 'อัพพลังสกิล');
+    const cdEl = skillBtn._cd || (skillBtn._cd = skillBtn.querySelector('.skill-cd'));
     const cdMax = sdef ? sdef.cd : 1;
-    skillBtn.classList.toggle('disabled', !sdef || state.mode !== 'arena');
+    hudClass(skillBtn, 'disabled', !sdef || state.mode !== 'arena');
     if (sdef && player.skillCooldown > 0){
-      const pct = player.skillCooldown / cdMax * 100;
-      cdEl.style.background = `conic-gradient(rgba(0,0,0,0.6) ${pct}%, transparent 0)`;
-      cdEl.textContent = Math.ceil(player.skillCooldown);
+      // the cooldown dial moves in 2% steps: smooth enough, far fewer style writes
+      const pct = Math.ceil(player.skillCooldown / cdMax * 50) * 2;
+      hudStyle(cdEl, 'background', `conic-gradient(rgba(0,0,0,0.6) ${pct}%, transparent 0)`);
+      hudText(cdEl, Math.ceil(player.skillCooldown));
     } else {
-      cdEl.style.background = 'none';
-      cdEl.textContent = '';
+      hudStyle(cdEl, 'background', 'none');
+      hudText(cdEl, '');
     }
 
-    document.getElementById('weapon-swatch').style.background = player.weaponColor;
-    document.getElementById('weapon-label').textContent = player.weaponName + ' • ATK ' + player.atk;
+    hudStyle($hud('weapon-swatch'), 'background', player.weaponColor);
+    hudText($hud('weapon-label'), player.weaponName + ' • ATK ' + player.atk);
 
-    const armorSwatch = document.getElementById('armor-swatch');
-    if (player.armorRarity === 'rainbow'){
-      armorSwatch.classList.add('rainbow-swatch');
-      armorSwatch.style.background = '';
-    } else {
-      armorSwatch.classList.remove('rainbow-swatch');
-      armorSwatch.style.background = player.armorColor;
-    }
-    document.getElementById('armor-label').textContent = player.armorName + ' • DEF ' + player.def + ' • ' + (player.armorPct || 0) + '%';
+    const armorSwatch = $hud('armor-swatch');
+    const rainbow = player.armorRarity === 'rainbow';
+    hudClass(armorSwatch, 'rainbow-swatch', rainbow);
+    hudStyle(armorSwatch, 'background', rainbow ? '' : player.armorColor);
+    hudText($hud('armor-label'), player.armorName + ' • DEF ' + player.def + ' • ' + (player.armorPct || 0) + '%');
 
-    const pct = clamp(player.hp / player.maxHp * 100, 0, 100);
-    document.getElementById('hp-bar-fill').style.width = pct + '%';
+    // HP bar in 0.5% steps
+    const pct = Math.round(clamp(player.hp / player.maxHp * 100, 0, 100) * 2) / 2;
+    hudStyle($hud('hp-bar-fill'), 'width', pct + '%');
   }
 
   // ---------- Game over / start ----------
