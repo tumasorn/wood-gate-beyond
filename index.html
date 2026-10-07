@@ -1207,22 +1207,79 @@
     return seen;
   }
 
-  // ---------- Boss-room guide arrow ----------
-  // points along the walkable route (not the straight line) so it leads the
-  // player through doorways toward the section holding the boss / exit warp
+  // ---------- Guide arrow ----------
+  // While monsters remain it leads to the nearest one (by walking distance);
+  // once the dungeon is cleared it leads to the exit warp. Either way it points
+  // along the walkable route (not the straight line), through doorways.
+  const GUIDE_HIDE_DIST = 90;   // a monster this close is already on screen
+
+  // one BFS from the player that stops at the first cell holding a living monster
+  function routeToNearestMonster(){
+    const grid = state.maze.pathGrid;
+    const { cols, rows, blocked } = grid;
+    const targets = new Map();
+    for (const mon of state.monsters){
+      if (mon.hp <= 0) continue;
+      const c = nearestFreeCell(grid, pathCellOf(grid, mon.x, mon.y), 3);
+      if (c) targets.set(c.r * cols + c.c, mon);
+    }
+    if (!targets.size) return null;
+    const start = nearestFreeCell(grid, pathCellOf(grid, player.x, player.y), 3);
+    if (!start) return null;
+    const startKey = start.r * cols + start.c;
+    if (targets.has(startKey)) return { monster: targets.get(startKey), path: [] };
+    const parent = new Int32Array(cols * rows).fill(-1);
+    parent[startKey] = startKey;
+    const queue = [startKey];
+    for (let qi = 0; qi < queue.length; qi++){
+      const cur = queue[qi], cr = Math.floor(cur / cols), cc = cur % cols;
+      for (const [dc, dr] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]){
+        const nc = cc + dc, nr = cr + dr;
+        if (nc < 0 || nc >= cols || nr < 0 || nr >= rows || blocked[nr][nc]) continue;
+        if (dc !== 0 && dr !== 0 && (blocked[cr][nc] || blocked[nr][cc])) continue;
+        const k = nr * cols + nc;
+        if (parent[k] !== -1) continue;
+        parent[k] = cur;
+        if (targets.has(k)){
+          const path = [];
+          for (let p = k; p !== startKey; p = parent[p]) path.push(gridPoint(grid, p % cols, Math.floor(p / cols)));
+          return { monster: targets.get(k), path: path.reverse() };
+        }
+        queue.push(k);
+      }
+    }
+    return null;   // nothing reachable from here
+  }
+
   function updateGuide(dt){
     const m = state.maze;
-    if (!m || !m.exitPoint || !m.goalRoom){ state.guideDir = null; return; }
-    const g = m.goalRoom;
-    if (player.x > g.x && player.x < g.x + g.w && player.y > g.y && player.y < g.y + g.h){
-      state.guideDir = null;
-      return;
-    }
+    if (!m || !m.pathGrid){ state.guideDir = null; return; }
     state.guideTimer = (state.guideTimer || 0) - dt;
-    if (state.guideTimer > 0 && state.guideDir) return;
+    if (state.guideTimer > 0) return;
     state.guideTimer = 0.35;
-    const path = findPath(player.x, player.y, m.exitPoint.x, m.exitPoint.y);
-    let tx = m.exitPoint.x, ty = m.exitPoint.y;
+    let path, tx, ty;
+    if (!state.exitDoor){
+      const live = state.monsters.filter(mon => mon.hp > 0);
+      let hunt = live.length ? routeToNearestMonster() : null;
+      if (!hunt && live.length){
+        // unreachable leftovers: point straight at the closest one
+        const near = live.reduce((a, b) => dist(a, player) <= dist(b, player) ? a : b);
+        hunt = { monster: near, path: null };
+      }
+      if (!hunt || dist(hunt.monster, player) < GUIDE_HIDE_DIST){ state.guideDir = null; return; }
+      state.guideKind = live.length === 1 && hunt.monster.isBoss ? 'boss' : 'monster';
+      state.guideLeft = live.length;
+      path = hunt.path; tx = hunt.monster.x; ty = hunt.monster.y;
+    } else {
+      const g = m.goalRoom;
+      if (!m.exitPoint || !g || (player.x > g.x && player.x < g.x + g.w && player.y > g.y && player.y < g.y + g.h)){
+        state.guideDir = null;
+        return;
+      }
+      state.guideKind = 'exit';
+      path = findPath(player.x, player.y, m.exitPoint.x, m.exitPoint.y);
+      tx = m.exitPoint.x; ty = m.exitPoint.y;
+    }
     if (path && path.length){
       const wp = path[Math.min(3, path.length - 1)];
       tx = wp.x; ty = wp.y;
@@ -1236,8 +1293,8 @@
     const dir = state.guideDir;
     if (!dir) return;
     const t = performance.now() / 1000;
-    const cleared = !!state.exitDoor;
-    const color = cleared ? '#7fe0ff' : '#e0b84a';
+    const kind = state.guideKind;
+    const color = kind === 'exit' ? '#7fe0ff' : kind === 'boss' ? '#e0b84a' : '#ff8a70';
     const r = 34 + Math.sin(t * 5) * 3;
     const ax = player.x + dir.x * r, ay = player.y + dir.y * r;
     const ang = Math.atan2(dir.y, dir.x);
@@ -1260,7 +1317,7 @@
     const lx = player.x + dir.x * (r + 16), ly = player.y + dir.y * (r + 16) + 3;
     ctx.lineWidth = 3;
     ctx.strokeStyle = 'rgba(10,8,7,0.85)';
-    const label = cleared ? 'ทางออก' : 'ห้องบอส';
+    const label = kind === 'exit' ? 'ทางออก' : kind === 'boss' ? 'บอส' : 'มอนสเตอร์ ' + state.guideLeft;
     ctx.strokeText(label, lx, ly);
     ctx.fillStyle = color;
     ctx.fillText(label, lx, ly);
