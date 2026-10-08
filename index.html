@@ -2002,8 +2002,9 @@
   const MONSTER_DMG_GROWTH = 1;
   const MONSTER_DMG_MULT = 0.8;
   const MONSTER_DMG_BASE = { grunt: 5, fast: 4, tank: 6, boss: 7 };
+  const HARD_DMG_MULT = 1;
   function monsterDamage(archetype, level){
-    return Math.max(1, Math.round(MONSTER_DMG_BASE[archetype] * (1 + MONSTER_DMG_GROWTH * level) * MONSTER_DMG_MULT));
+    return Math.max(1, Math.round(MONSTER_DMG_BASE[archetype] * (1 + MONSTER_DMG_GROWTH * level) * (state.difficulty === 'hard' ? HARD_DMG_MULT : MONSTER_DMG_MULT)));
   }
 
   function spawnMonster(level){
@@ -3521,8 +3522,10 @@
   }
 
   const BOSS_BONUS_DROP_CHANCE = 0.15;
+  const HARD_BOSS_BONUS_DROP_CHANCE = 0.5;
   function maybeDropBossBonus(x, y, level){
-    if (Math.random() >= BOSS_BONUS_DROP_CHANCE) return;
+    const chance = state.difficulty === 'hard' ? HARD_BOSS_BONUS_DROP_CHANCE : BOSS_BONUS_DROP_CHANCE;
+    if (Math.random() >= chance) return;
     const highTiers = ARMOR_TIERS.filter(t => t.key === 'gold' || t.key === 'rainbow');
     const totalW = highTiers.reduce((s,t)=>s+t.weight, 0);
     let r = rand(0, totalW);
@@ -3573,6 +3576,7 @@
   // ---------- Coins (dropped by monsters, spent at the merchant) ----------
   const COIN_DROP_MONSTER = 0.20, COIN_DROP_BOSS = 0.40;
   const COINS_MONSTER = 2, COINS_BOSS = 10;   // coins per drop
+  const HARD_COIN_DROP_MONSTER = 0.30, HARD_COINS_MONSTER = 4;
   const SHOP_SPRITES = {};
   ['npc_merchant', 'item_potion', 'item_hipotion', 'item_shieldpotion', 'coin'].forEach(k=>{
     const img = new Image();
@@ -3583,9 +3587,12 @@
   });
 
   function maybeDropCoins(m){
-    if (Math.random() >= (m.isBoss ? COIN_DROP_BOSS : COIN_DROP_MONSTER)) return;
+    const hard = state.difficulty === 'hard';
+    const chance = m.isBoss ? COIN_DROP_BOSS : hard ? HARD_COIN_DROP_MONSTER : COIN_DROP_MONSTER;
+    if (Math.random() >= chance) return;
     const pos = resolveDropPosition(m.x + rand(-8, 8), m.y + rand(-8, 8));
-    state.coinPickups.push({ x: pos.x, y: pos.y, amount: m.isBoss ? COINS_BOSS : COINS_MONSTER, t: rand(0, 6) });
+    const amount = m.isBoss ? COINS_BOSS : hard ? HARD_COINS_MONSTER : COINS_MONSTER;
+    state.coinPickups.push({ x: pos.x, y: pos.y, amount, t: rand(0, 6) });
   }
 
   // coins are picked up just by walking over them
@@ -5610,7 +5617,7 @@
   const DIFFICULTIES = {
     easy:   { name: 'ง่าย',     desc: 'เริ่มต้นได้สกิลสุ่ม 1 ท่า และยาสุ่ม 1 ขวด' },
     normal: { name: 'ปานกลาง', desc: 'แบบมาตรฐาน' },
-    hard:   { name: 'ยาก',      desc: 'มอนสเตอร์ 6-10 ตัวทุกดันเจียน' },
+    hard:   { name: 'ยาก',      desc: 'มอนสเตอร์ 6-10 ตัว ตีแรงขึ้น • บอสดรอปของหายาก 50% • เหรียญ 4 (30%)' },
   };
   const HARD_MONSTERS_MIN = 6, HARD_MONSTERS_MAX = 10;
   state.difficulty = (()=>{ try { const d = localStorage.getItem(DIFF_KEY); return DIFFICULTIES[d] ? d : 'normal'; } catch(e){ return 'normal'; } })();
