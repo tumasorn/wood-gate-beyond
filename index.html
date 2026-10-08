@@ -397,6 +397,19 @@
   #playerName.invalid{ border-color:var(--blood-300); animation:name-shake 0.3s; }
   @keyframes name-shake{ 0%,100%{ transform:translateX(0); } 25%{ transform:translateX(-6px); } 75%{ transform:translateX(6px); } }
   .name-error{ min-height:14px; font-size:11px; color:var(--blood-300); }
+  .diff-field{ display:flex; flex-direction:column; align-items:center; gap:6px; width:min(300px, 100%); margin-top:-8px; }
+  .diff-field .diff-label{ font-family:'Press Start 2P', monospace; font-size:9px; color:var(--torch-300); letter-spacing:1px; }
+  .diff-opts{ display:flex; gap:6px; width:100%; }
+  .diff-opt{
+    flex:1; padding:9px 4px; border-radius:4px; cursor:pointer;
+    font-family:'IBM Plex Mono', monospace; font-size:13px; font-weight:600;
+    color:var(--bone-300); background:var(--stone-800); border:2px solid var(--stone-700);
+  }
+  .diff-opt[aria-checked="true"]{ color:var(--bone-100); }
+  .diff-opt[data-diff="easy"][aria-checked="true"]{ background:#2c4a30; border-color:var(--moss-300); }
+  .diff-opt[data-diff="normal"][aria-checked="true"]{ background:#4a3a22; border-color:var(--torch-500); }
+  .diff-opt[data-diff="hard"][aria-checked="true"]{ background:#4a2424; border-color:var(--blood-300); }
+  .diff-desc{ min-height:16px; font-size:11px; color:var(--bone-300); opacity:0.85; }
   #startBtn, #restartBtn, #continueBtn{
     font-family:'Press Start 2P', monospace;
     font-size:12px; color:var(--bone-100);
@@ -641,6 +654,15 @@
       <label for="playerName">ชื่อผู้เล่น</label>
       <input id="playerName" maxlength="16" autocomplete="nickname" spellcheck="false" placeholder="กรอกชื่อของคุณ" enterkeyhint="go">
       <div class="name-error" id="nameError"></div>
+    </div>
+    <div class="diff-field">
+      <div class="diff-label" id="diffLabel">ระดับความยาก</div>
+      <div class="diff-opts" role="radiogroup" aria-labelledby="diffLabel">
+        <button class="diff-opt" data-diff="easy" role="radio" aria-checked="false">ง่าย</button>
+        <button class="diff-opt" data-diff="normal" role="radio" aria-checked="true">ปานกลาง</button>
+        <button class="diff-opt" data-diff="hard" role="radio" aria-checked="false">ยาก</button>
+      </div>
+      <div class="diff-desc" id="diffDesc"></div>
     </div>
     <div class="overlay-actions">
       <button id="startBtn">เริ่มเกม</button>
@@ -4215,7 +4237,11 @@
     state.maze.traps = generateTraps();
     const maxCount = Math.min(5, 1 + state.level);
     // more sections, more monsters: one extra per section beyond the first
-    const count = randInt(2, Math.max(2, maxCount)) + state.maze.chunks.length - 1;
+    const normalCount = randInt(2, Math.max(2, maxCount)) + state.maze.chunks.length - 1;
+    // hard: 6-10 every time, and never fewer than a normal roll would give
+    const count = state.difficulty === 'hard'
+      ? Math.min(HARD_MONSTERS_MAX, Math.max(normalCount, randInt(HARD_MONSTERS_MIN, HARD_MONSTERS_MAX)))
+      : normalCount;
     state.monsters = [];
     for (let i=0;i<count;i++){
       state.monsters.push(spawnMonster(state.level));
@@ -5579,6 +5605,41 @@
   document.getElementById('howtoBtn').addEventListener('click', openHowtoFromMenu);
 
   // ---------- Player name (asked on the start menu, shown on the leaderboard) ----------
+  // ---------- Difficulty ----------
+  const DIFF_KEY = 'wgb_difficulty';
+  const DIFFICULTIES = {
+    easy:   { name: 'ง่าย',     desc: 'เริ่มต้นได้สกิลสุ่ม 1 ท่า และยาสุ่ม 1 ขวด' },
+    normal: { name: 'ปานกลาง', desc: 'แบบมาตรฐาน' },
+    hard:   { name: 'ยาก',      desc: 'มอนสเตอร์ 6-10 ตัวทุกดันเจียน' },
+  };
+  const HARD_MONSTERS_MIN = 6, HARD_MONSTERS_MAX = 10;
+  state.difficulty = (()=>{ try { const d = localStorage.getItem(DIFF_KEY); return DIFFICULTIES[d] ? d : 'normal'; } catch(e){ return 'normal'; } })();
+  function bindDifficulty(){
+    const opts = overlay.querySelectorAll('.diff-opt');
+    const desc = document.getElementById('diffDesc');
+    if (!opts.length) return;
+    const show = ()=>{
+      opts.forEach(b => b.setAttribute('aria-checked', b.dataset.diff === state.difficulty ? 'true' : 'false'));
+      if (desc) desc.textContent = DIFFICULTIES[state.difficulty].desc;
+    };
+    opts.forEach(b => b.addEventListener('click', ()=>{
+      state.difficulty = b.dataset.diff;
+      try { localStorage.setItem(DIFF_KEY, state.difficulty); } catch(e){}
+      show();
+    }));
+    show();
+  }
+  // easy mode hands out a random skill and a random potion at the start
+  function applyDifficultyStart(){
+    if (state.difficulty !== 'easy') return;
+    const skillIds = Object.keys(SKILLS), potionIds = Object.keys(POTIONS);
+    player.skill = skillIds[randInt(0, skillIds.length - 1)];
+    player.skillCooldown = 0;
+    player.slot = potionIds[randInt(0, potionIds.length - 1)];
+    const msg = 'ได้สกิล ' + SKILLS[player.skill].name + ' และ' + POTIONS[player.slot].name;
+    setTimeout(()=>{ if (state.running && state.mode === 'entrance') showBanner(msg, 2000); }, 1500);
+  }
+
   const NAME_KEY = 'wgb_player_name';
   const NAME_MAX = 16;
   function cleanName(raw){
@@ -5598,6 +5659,7 @@
       input.addEventListener('keydown', (e)=>{ if (e.key === 'Enter'){ e.preventDefault(); tryStartGame(); } });
     }
     document.getElementById('startBtn').addEventListener('click', tryStartGame);
+    bindDifficulty();
   }
   function tryStartGame(){
     const input = document.getElementById('playerName');
@@ -5665,6 +5727,7 @@
     state.running = false;
     releaseControls();
     document.getElementById('pause-stats').innerHTML =
+      'ความยาก <b>' + DIFFICULTIES[state.difficulty].name + '</b><br>' +
       'ดันเจียน <b>Lv.' + state.level + '</b> • คะแนน <b>' + state.score + '</b><br>' +
       'ตัวละคร <b>Lv.' + player.lv + '</b> • HP <b>' + Math.max(0, Math.round(player.hp)) + '/' + player.maxHp + '</b>';
     disarmRestart();
@@ -6183,7 +6246,7 @@
     state.running = false;
     overlay.innerHTML = `
       <h1>หัวใจหมดแล้ว</h1>
-      <p>${state.playerName ? 'ผู้เล่น <span class="stat" id="goName"></span><br>' : ''}ไปถึงดันเจียนชั้น <span class="stat">${state.level}</span><br>
+      <p>${state.playerName ? 'ผู้เล่น <span class="stat" id="goName"></span><br>' : ''}ความยาก <span class="stat">${DIFFICULTIES[state.difficulty].name}</span><br>ไปถึงดันเจียนชั้น <span class="stat">${state.level}</span><br>
       คะแนนรวม <span class="stat">${state.score}</span></p>
       <button id="restartBtn">ลองอีกครั้ง</button>
       <div class="lb"><div class="lb-title">ตารางคะแนน</div><div class="lb-tabs"><button class="lb-tab" data-tab="top">ผู้เล่นอื่น</button><button class="lb-tab" data-tab="mine">คะแนนของฉัน</button></div><div class="lb-panel" data-panel="top"><ol class="lb-list lb-top"><li class="lb-empty">กำลังโหลด...</li></ol><div class="lb-note lb-top-note"></div></div><div class="lb-panel" data-panel="mine" hidden><div class="lb-mine-sum"></div><ol class="lb-list lb-mine"></ol><div class="lb-note lb-mine-note"></div></div></div>
@@ -6224,6 +6287,7 @@
     player.maxHp = 100; player.hp = player.maxHp;
     state.skillOrbs = []; state.skillFx = [];
     state.ending = null;
+    applyDifficultyStart();
     overlay.classList.add('hidden');
     overlay.classList.remove('ending');
     resize();
