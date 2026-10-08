@@ -6005,9 +6005,9 @@
   const END_GATE = { x: 0.5, y: 0.88 }, END_STOP = { x: 0.5, y: 0.72 };
   const END_WALK_FROM = 0.7, END_WALK_TO = 3.6, END_TURN = 4.3, END_TEXT = 4.6, END_MENU = 7.5;
 
-  function enterEnding(){
+  function enterEnding(demo){
     state.mode = 'ending';
-    state.ending = { t: 0, confetti: [], menuShown: false };
+    state.ending = { t: 0, confetti: [], menuShown: false, demo: demo === true };
     state.monsters = []; state.projectiles = []; state.particles = []; state.damageNumbers = [];
     state.exitDoor = null;
     state.guideDir = null;
@@ -6017,7 +6017,16 @@
     updateHud();
     updateDropsPanel();
     // the run is over: save it now, so leaving early still keeps the score
-    lbSubmit(state.score, state.level, player.lv);
+    if (!state.ending.demo) lbSubmit(state.score, state.level, player.lv);
+  }
+
+  // opening the game with #ending plays the ending straight away, as a preview:
+  // a fresh hero, no score, nothing saved
+  function playEndingDemo(){
+    try { history.replaceState(null, '', location.pathname + location.search); } catch(err){}
+    startGame();
+    state.transition = null;
+    enterEnding(true);
   }
 
   function updateEnding(dt){
@@ -6136,8 +6145,8 @@
     state.running = false;
     overlay.innerHTML = `
       <h1>ยินดีด้วย!<br>คุณเคลียร์เกมสำเร็จ</h1>
-      <p>${state.playerName ? 'ผู้เล่น <span class="stat" id="goName"></span><br>' : ''}กลับสู่โลกจริงหลังผ่านครบ <span class="stat">${FINAL_LEVEL}</span> ดันเจียน<br>
-      คะแนนรวม <span class="stat">${state.score}</span> • เลเวลตัวละคร <span class="stat">${player.lv}</span></p>
+      ${state.ending && state.ending.demo ? '<p>นี่คือโหมดชมฉากจบ (ไม่บันทึกคะแนน)<br>ผ่านครบ <span class="stat">' + FINAL_LEVEL + '</span> ดันเจียนเพื่อกลับสู่โลกจริงด้วยตัวเอง!</p>' : `<p>${state.playerName ? 'ผู้เล่น <span class="stat" id="goName"></span><br>' : ''}กลับสู่โลกจริงหลังผ่านครบ <span class="stat">${FINAL_LEVEL}</span> ดันเจียน<br>
+      คะแนนรวม <span class="stat">${state.score}</span> • เลเวลตัวละคร <span class="stat">${player.lv}</span></p>`}
       <div class="overlay-actions"><button id="restartBtn">ผจญภัยอีกครั้ง</button><button id="endMenuBtn">กลับเมนู</button></div>
       <div class="lb"><div class="lb-title">ตารางคะแนน</div><div class="lb-tabs"><button class="lb-tab" data-tab="top">ผู้เล่นอื่น</button><button class="lb-tab" data-tab="mine">คะแนนของฉัน</button></div><div class="lb-panel" data-panel="top"><ol class="lb-list lb-top"><li class="lb-empty">กำลังโหลด...</li></ol><div class="lb-note lb-top-note"></div></div><div class="lb-panel" data-panel="mine" hidden><div class="lb-mine-sum"></div><ol class="lb-list lb-mine"></ol><div class="lb-note lb-mine-note"></div></div></div>
     `;
@@ -6219,6 +6228,8 @@
 
   resize();
   draw();
+  if (location.hash === '#ending') playEndingDemo();
+  window.addEventListener('hashchange', ()=>{ if (location.hash === '#ending') playEndingDemo(); });
 })();
 </script>
 </body>
