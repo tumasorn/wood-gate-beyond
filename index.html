@@ -2044,11 +2044,12 @@
   }
 
   // ---------- Mimic: a treasure chest that bites ----------
-  // About one dungeon in ten hides one. It never moves, sits disguised until the
+  // From dungeon 5 on, about one dungeon in twenty hides one. It never moves, sits disguised until the
   // player comes close (or hits it), then bites anyone in reach. It is optional:
   // the exit opens without it, the guide arrow and the monster count ignore it,
   // and killing it always drops the best armour there is.
-  const MIMIC_CHANCE = 0.10;
+  const MIMIC_CHANCE = 0.05;
+  const MIMIC_MIN_LEVEL = 5;
   const MIMIC_WAKE_TILES = 2.2;   // wakes when the player is this many tiles away
   const MIMIC_BITE_REACH = 14;
   const MIMIC_SPRITES = {};
@@ -4390,7 +4391,7 @@
       state.monsters.push(spawnBossMonster(state.level));
     }
     const eliteCount = applyEliteShields(state.level);
-    if (Math.random() < MIMIC_CHANCE) state.monsters.push(spawnMimic(state.level));
+    if (state.level >= MIMIC_MIN_LEVEL && Math.random() < MIMIC_CHANCE) state.monsters.push(spawnMimic(state.level));
     if (eliteCount){
       const mazeRef = state.maze;
       setTimeout(()=>{ if (state.maze === mazeRef) showBanner('มอนสเตอร์โล่ปรากฏ ' + eliteCount + ' ตัว! ตีโล่ให้แตกก่อน', 1700); }, state.maze.fountain ? 3000 : 1400);
