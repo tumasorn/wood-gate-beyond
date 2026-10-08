@@ -1245,7 +1245,7 @@
     const { cols, rows, blocked } = grid;
     const targets = new Map();
     for (const mon of state.monsters){
-      if (mon.hp <= 0) continue;
+      if (mon.hp <= 0 || mon.isMimic) continue;
       const c = nearestFreeCell(grid, pathCellOf(grid, mon.x, mon.y), 3);
       if (c) targets.set(c.r * cols + c.c, mon);
     }
@@ -1285,7 +1285,7 @@
     state.guideTimer = 0.35;
     let path, tx, ty;
     if (!state.exitDoor){
-      const live = state.monsters.filter(mon => mon.hp > 0);
+      const live = state.monsters.filter(mon => mon.hp > 0 && !mon.isMimic);
       let hunt = live.length ? routeToNearestMonster() : null;
       if (!hunt && live.length){
         // unreachable leftovers: point straight at the closest one
@@ -1466,6 +1466,7 @@
   // mod(src) returns a damage multiplier; src = { kind:'weapon'|'skill', element }
   // dodge = chance that, after being hit, the monster sidesteps the next attack
   const MONSTER_TRAITS = {
+    mimic:    { name:'แกล้งตาย',     desc:'ปลอมตัวเป็นหีบสมบัติ ไม่ขยับไปไหน', dodge:0 },
     goblin:   { name:'ว่องไว',      desc:'หลบการโจมตีเก่ง', dodge:0.35 },
     wolf:     { name:'ปราดเปรียว',   desc:'หลบการโจมตีเก่งมาก', dodge:0.40 },
     treant:   { name:'เปลือกไม้',    desc:'ลดดาเมจ 30% แต่แพ้ไฟ', dodge:0.05,
@@ -1549,7 +1550,7 @@
   }
 
   function applyEliteShields(level){
-    const pool = state.monsters.filter(m => !m.isBoss);
+    const pool = state.monsters.filter(m => !m.isBoss && !m.isMimic);
     if (!pool.length) return 0;
     const chance = eliteChance(level);
     let count = 0;
@@ -2040,6 +2041,135 @@
       facing: { x: rand(-1, 1), y: rand(-1, 1) },
       idle: type === 'tank' ? rand(0, 1.5) : 0,
     };
+  }
+
+  // ---------- Mimic: a treasure chest that bites ----------
+  // About one dungeon in ten hides one. It never moves, sits disguised until the
+  // player comes close (or hits it), then bites anyone in reach. It is optional:
+  // the exit opens without it, the guide arrow and the monster count ignore it,
+  // and killing it always drops the best armour there is.
+  const MIMIC_CHANCE = 0.10;
+  const MIMIC_WAKE_TILES = 2.2;   // wakes when the player is this many tiles away
+  const MIMIC_BITE_REACH = 14;
+  const MIMIC_SPRITES = {};
+  ['mimic_closed', 'mimic_open'].forEach(k=>{
+    const img = new Image();
+    const entry = { img, loaded: false };
+    img.onload = ()=>{ entry.loaded = true; };
+    img.src = 'sprites/' + k + '.png';
+    MIMIC_SPRITES[k] = entry;
+  });
+
+  function spawnMimic(level){
+    const size = 30;
+    const hp = (18 + level * 6) * 3;
+    const goal = state.maze && state.maze.goalRoom;
+    let x, y, tries = 0;
+    do {
+      x = rand(30, WORLD_W - 30);
+      y = rand(30, WORLD_H - 30);
+      tries++;
+    } while ((dist({x,y}, player) < 200 || collidesWalls(x, y, size + 10) || !isReachablePoint(x, y) ||
+              (goal && x > goal.x && x < goal.x + goal.w && y > goal.y && y < goal.y + goal.h)) && tries < 160);
+    return {
+      x, y, size, hp, maxHp: hp, speed: 0, dmg: Math.round(monsterDamage('tank', level) * 1.5), type: 'mimic',
+      kind: 'mimic', name: 'มิมิค', color: '#a0703a', isMimic: true, awake: false, biteT: 0, sleepT: 0,
+      attackCooldown: 0, attackCooldownMax: 1.1, hitFlash: 0,
+      path: null, pathIndex: 0, pathRecalcTimer: 0, patrol: false,
+      facing: { x: 0, y: 1 }, idle: 0, moving: false,
+    };
+  }
+
+  function wakeMimic(m){
+    m.awake = true;
+    m.attackCooldown = 0.35;   // a beat to react before the first bite
+    m.biteT = 0.3;
+    spawnParticles(m.x, m.y, '#e0b84a', 12);
+    state.shakeUntil = performance.now() + 260;
+    if (!state.seenMimic){
+      state.seenMimic = true;
+      showBanner('มิมิค! หีบสมบัตินี้คือมอนสเตอร์', 1600);
+    }
+  }
+
+  function updateMimic(m, dt){
+    if (m.attackCooldown > 0) m.attackCooldown -= dt;
+    if (m.biteT > 0) m.biteT -= dt;
+    const dx = player.x - m.x, dy = player.y - m.y;
+    const d = Math.hypot(dx, dy) || 1;
+    const wakeDist = MIMIC_WAKE_TILES * TILE_SIZE;
+    if (!m.awake){
+      if (d < wakeDist || m.hp < m.maxHp) wakeMimic(m);
+      return;
+    }
+    m.facing = { x: dx / d, y: dy / d };
+    // left alone long enough, it shuts its lid and plays chest again
+    if (d > wakeDist * 2.5){
+      m.sleepT += dt;
+      if (m.sleepT > 4){ m.awake = false; m.sleepT = 0; }
+      return;
+    }
+    m.sleepT = 0;
+    if (d <= m.size/2 + player.size/2 + MIMIC_BITE_REACH && m.attackCooldown <= 0 && player.invuln <= 0){
+      const dmgTaken = shieldAbsorb(armorReduce(m.dmg));
+      player.hp -= dmgTaken;
+      player.invuln = 0.6;
+      m.attackCooldown = m.attackCooldownMax;
+      m.biteT = 0.25;
+      spawnParticles(player.x, player.y, '#d9685f');
+      spawnDamageNumber(player.x, player.y - player.size/2, dmgTaken);
+      flashScreen();
+    }
+  }
+
+  // the best there is: rainbow armour with the top defence roll for this depth
+  function dropMimicTreasure(m, level){
+    const tier = ARMOR_TIERS.find(t => t.key === 'rainbow');
+    const def = Math.round((3 + Math.floor(level * 1.1) + 3) * tier.mult);
+    const pos = resolveDropPosition(m.x, m.y);
+    state.armorPickups.push({ x: pos.x, y: pos.y, tier, def, bob: rand(0, Math.PI*2) });
+    updateDropsPanel();
+    showBanner('มิมิคดรอป ' + tier.name + '!', 1600);
+  }
+
+  function drawMimic(m){
+    const open = m.awake;
+    const spr = MIMIC_SPRITES[open ? 'mimic_open' : 'mimic_closed'];
+    const bite = m.biteT > 0 ? Math.sin((1 - m.biteT / 0.3) * Math.PI) : 0;
+    const sz = m.size * 1.9 * (1 + bite * 0.18);
+    const t = performance.now() / 1000;
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath(); ctx.ellipse(m.x, m.y + m.size/2 - 2, m.size * 0.6, m.size * 0.2, 0, 0, Math.PI*2); ctx.fill();
+    if (spr && spr.loaded){
+      const prev = ctx.imageSmoothingEnabled;
+      ctx.imageSmoothingEnabled = false;
+      // a sleeping mimic breathes ever so slightly; an awake one shudders
+      const wob = open ? Math.sin(t * 22) * 0.8 : 0;
+      ctx.drawImage(spr.img, m.x - sz/2 + wob, m.y - sz * 0.62, sz, sz);
+      if (m.hitFlash > 0){
+        ctx.globalAlpha = 0.5;
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.drawImage(spr.img, m.x - sz/2 + wob, m.y - sz * 0.62, sz, sz);
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = 1;
+      }
+      ctx.imageSmoothingEnabled = prev;
+    } else {
+      ctx.fillStyle = m.color;
+      ctx.fillRect(m.x - m.size/2, m.y - m.size/2, m.size, m.size * 0.8);
+    }
+    // a treasure-like glint while it waits
+    if (!open){
+      const g = (t * 0.7) % 1;
+      if (g < 0.25){
+        ctx.globalAlpha = Math.sin(g / 0.25 * Math.PI);
+        ctx.fillStyle = '#fff6c0';
+        const gx = m.x + 6, gy = m.y - m.size * 0.45;
+        ctx.fillRect(gx - 1, gy - 4, 2, 8);
+        ctx.fillRect(gx - 4, gy - 1, 8, 2);
+        ctx.globalAlpha = 1;
+      }
+    }
   }
 
   // move a monster, sliding around wall corners: when one axis is blocked, look
@@ -2903,6 +3033,7 @@
 
   // ---------- Themed monster rendering ----------
   function drawMonsterBody(m){
+    if (m.isMimic){ drawMimic(m); return; }
     const facing = m.facing || {x:0, y:1};
     const drawSize = Math.max(m.size * 2.3, 46);
     // elites wear different colours with a gold outline (pre-tinted sheet)
@@ -3764,6 +3895,7 @@
   function monsterXp(m){
     const base = 4 + state.level * 2;
     if (m.isBoss) return base * 8;
+    if (m.isMimic) return base * 4;
     if (m.elite) return Math.round(base * (m.type === 'tank' ? 3 : 2));
     if (m.type === 'tank') return Math.round(base * 1.5);
     return base;
@@ -4258,6 +4390,7 @@
       state.monsters.push(spawnBossMonster(state.level));
     }
     const eliteCount = applyEliteShields(state.level);
+    if (Math.random() < MIMIC_CHANCE) state.monsters.push(spawnMimic(state.level));
     if (eliteCount){
       const mazeRef = state.maze;
       setTimeout(()=>{ if (state.maze === mazeRef) showBanner('มอนสเตอร์โล่ปรากฏ ' + eliteCount + ' ตัว! ตีโล่ให้แตกก่อน', 1700); }, state.maze.fountain ? 3000 : 1400);
@@ -4510,6 +4643,7 @@
       if (m.hitFlash > 0) m.hitFlash -= dt;
       if (m.slowTimer > 0) m.slowTimer -= dt;
       if (m.shieldHit > 0) m.shieldHit -= dt;
+      if (m.isMimic){ updateMimic(m, dt); continue; }
 
       // mid-sidestep: just slide, no chasing or attacking this frame
       if (m.dodgeTime > 0){
@@ -4622,7 +4756,7 @@
     updateGuide(dt);
 
     // remove dead monsters
-    const before = state.monsters.length;
+    const before = state.monsters.filter(m => !m.isMimic).length;
     for (const m of state.monsters){
       if (m.hp <= 0){
         spawnParticles(m.x, m.y, m.color, 10);
@@ -4633,10 +4767,12 @@
         maybeDropCoins(m);
         gainXp(monsterXp(m));
         if (m.isBoss) maybeDropBossBonus(m.x, m.y, state.level);
+        if (m.isMimic) dropMimicTreasure(m, state.level);
       }
     }
     state.monsters = state.monsters.filter(m => m.hp > 0);
-    if (state.monsters.length === 0 && before > 0 && !state.exitDoor){
+    // the dungeon is cleared once every monster except a mimic is gone
+    if (before > 0 && !state.exitDoor && !state.monsters.some(m => !m.isMimic)){
       dungeonCleared();
     }
 
@@ -5257,6 +5393,15 @@
           ctx.textAlign = 'left';
         }
 
+        if (m.isMimic){
+          if (!m.awake) continue;
+          ctx.textAlign = 'center';
+          ctx.font = "" + 7 * UI_SCALE + "px 'IBM Plex Mono', monospace";
+          ctx.fillStyle = '#e0b84a';
+          ctx.fillText(m.name, m.x, m.y - m.size/2 - 15);
+          ctx.textAlign = 'left';
+        }
+
         // hp bar
         const hbw = m.size;
         ctx.fillStyle = '#1a1614';
@@ -5535,7 +5680,7 @@
       hudText(countEl, state.mode === 'ending' ? 'กลับสู่โลกจริงแล้ว'
         : state.exitDoor
         ? (state.exitDoor.final ? 'เคลียร์ครบ ' + FINAL_LEVEL + ' ดันเจียน! เดินเข้าประตูกลับโลกจริง' : 'เคลียร์แล้ว! เดินเข้าประตูทางออก')
-        : 'มอนสเตอร์เหลือ: ' + state.monsters.length);
+        : 'มอนสเตอร์เหลือ: ' + state.monsters.filter(m => !m.isMimic).length);
       hudClass(attackBtn, 'disabled', state.mode === 'ending');
       hudClass(swapBtn, 'available', !!findNearbyPickup());
       hudText(swapBtn, 'เก็บ');
