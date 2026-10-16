@@ -25,7 +25,7 @@
   }
   /* bigger screens get bigger text: these panels scale as a whole */
   #hud, #banner, #drops-panel, #quick-slots,
-  #overlay, #pause-overlay, #shop-overlay, #howto-overlay{ zoom:var(--ui); }
+  #overlay, #pause-overlay, #shop-overlay, #howto-overlay, #kofi-overlay{ zoom:var(--ui); }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
   html,body{
     margin:0; padding:0; width:100%; height:100%;
@@ -555,6 +555,56 @@
     background:var(--stone-800); border:2px solid var(--stone-700);
     padding:12px 22px; border-radius:4px; box-shadow:0 4px 0 var(--stone-950);
   }
+  /* Ko-fi spare hearts */
+  #kofi-overlay{
+    position:absolute; inset:0; z-index:27;
+    background:rgba(10,8,7,0.94);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    justify-content:safe center;
+    gap:12px; padding:18px; text-align:center; overflow-y:auto;
+  }
+  #kofi-overlay.hidden{ display:none; }
+  #kofi-overlay h1{
+    font-family:'Press Start 2P', monospace; color:#ff8a8a; font-size:15px; margin:0;
+    text-shadow:0 0 12px rgba(255,90,90,0.4);
+  }
+  #kofi-bank{ font-size:13px; color:var(--bone-300); }
+  #kofi-bank b{ color:#ff8a8a; font-size:16px; }
+  .kofi-rate{ font-size:12px; color:var(--bone-300); margin:0; max-width:300px; line-height:1.6; }
+  .kofi-code-box{
+    display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:4px;
+    background:var(--stone-800); border:2px dashed var(--torch-500);
+  }
+  .kofi-code-label{ font-size:10px; color:var(--bone-300); }
+  #kofiCode{ font-family:'IBM Plex Mono', monospace; font-weight:600; font-size:18px; color:#ffe08a; letter-spacing:1px;
+             user-select:all; -webkit-user-select:all; }
+  #kofiCopyBtn{ font-size:11px; padding:6px 10px; border-radius:3px; color:var(--bone-100);
+                background:var(--stone-700); border:1px solid var(--stone-700); }
+  .kofi-steps{ text-align:left; font-size:12px; color:var(--bone-300); line-height:1.7; margin:0; padding-left:20px; max-width:300px; }
+  .kofi-steps b{ color:#ffe08a; }
+  .kofi-actions{ display:flex; gap:10px; flex-wrap:wrap; justify-content:center; }
+  #kofiLink, #kofiRefreshBtn, #kofiCloseBtn{
+    font-family:'Press Start 2P', monospace; font-size:11px; color:var(--bone-100); text-decoration:none;
+    padding:12px 16px; border-radius:4px; border:2px solid var(--stone-700); background:var(--stone-800);
+    box-shadow:0 4px 0 var(--stone-950);
+  }
+  #kofiLink{ background:#29abe0; border-color:#7fd3f5; box-shadow:0 4px 0 #1b6f91; }
+  #kofi-status{ min-height:16px; font-size:11px; color:var(--moss-300); }
+  #kofi-status.err{ color:var(--blood-300); }
+  .kofi-note{ font-size:10px; color:var(--bone-300); opacity:0.7; margin:0; max-width:300px; line-height:1.5; }
+  .kofi-open{
+    font-family:'IBM Plex Mono', monospace; font-size:12px; font-weight:600; color:#ffb0b0; cursor:pointer;
+    background:rgba(163,59,59,0.18); border:1px solid rgba(217,104,95,0.6); border-radius:14px; padding:6px 12px;
+  }
+  .kofi-open b{ color:#ff8a8a; }
+  #continueHeartBtn{
+    font-family:'Press Start 2P', monospace; font-size:11px; color:#fff;
+    background:var(--blood-500); border:2px solid var(--blood-300); border-radius:4px;
+    padding:13px 18px; box-shadow:0 4px 0 #5e2020;
+  }
+  .pause-actions #pauseUseHeartBtn{ background:#5e2a2a; border-color:var(--blood-300); }
+  .pause-actions #pauseUseHeartBtn:disabled{ opacity:0.4; }
+
   #howto-overlay{
     position:absolute; inset:0; z-index:25;
     background:rgba(10,8,7,0.95);
@@ -668,6 +718,7 @@
       <button id="startBtn">เริ่มเกม</button>
       <button id="howtoBtn">วิธีเล่น</button>
     </div>
+    <button class="kofi-open">♥ หัวใจสำรอง <b class="kofi-count">-</b> • เติมผ่าน Ko-fi</button>
     <div class="lb"><div class="lb-title">ตารางคะแนน</div><div class="lb-tabs"><button class="lb-tab" data-tab="top">ผู้เล่นอื่น</button><button class="lb-tab" data-tab="mine">คะแนนของฉัน</button></div><div class="lb-panel" data-panel="top"><ol class="lb-list lb-top"><li class="lb-empty">กำลังโหลด...</li></ol><div class="lb-note lb-top-note"></div></div><div class="lb-panel" data-panel="mine" hidden><div class="lb-mine-sum"></div><ol class="lb-list lb-mine"></ol><div class="lb-note lb-mine-note"></div></div></div>
   </div>
 
@@ -676,10 +727,12 @@
     <div id="pause-stats"></div>
     <div class="pause-actions">
       <button id="resumeBtn">เล่นต่อ</button>
+      <button id="pauseUseHeartBtn" disabled>ใช้หัวใจสำรอง +1 (<span class="kofi-count">-</span>)</button>
       <button id="pauseHowtoBtn">วิธีเล่น</button>
       <button id="pauseRestartBtn">เริ่มใหม่</button>
       <button id="pauseMenuBtn">กลับเมนู</button>
     </div>
+    <button class="kofi-open">♥ เติมหัวใจสำรองผ่าน Ko-fi</button>
     <div id="pause-hint">กด Esc หรือ P เพื่อเล่นต่อ</div>
   </div>
 
@@ -706,6 +759,25 @@
       </div>
     </div>
     <button id="shopCloseBtn">ปิดร้าน</button>
+  </div>
+
+  <div id="kofi-overlay" class="hidden">
+    <h1>♥ เติมหัวใจสำรอง</h1>
+    <div id="kofi-bank">หัวใจสำรองของคุณ: <b id="kofiHearts">-</b> ดวง</div>
+    <p class="kofi-rate">สนับสนุนผู้สร้างเกมผ่าน Ko-fi<br><b>1 กาแฟ = 3 หัวใจสำรอง</b> ใช้เล่นต่อตอนหัวใจหมด หรือเติมหัวใจระหว่างหยุดเกม</p>
+    <div class="kofi-code-box"><span class="kofi-code-label">รหัสของคุณ</span><span id="kofiCode">กำลังโหลด...</span><button id="kofiCopyBtn">คัดลอก</button></div>
+    <ol class="kofi-steps">
+      <li>กด <b>ไปที่ Ko-fi</b> แล้วเลือกจำนวนกาแฟ</li>
+      <li>ใส่รหัสด้านบนในช่อง <b>ข้อความ (message)</b> ตอนสนับสนุน</li>
+      <li>กลับมากด <b>ตรวจสอบยอด</b> หัวใจจะเข้าภายในไม่กี่นาที</li>
+    </ol>
+    <div class="kofi-actions">
+      <a id="kofiLink" href="https://ko-fi.com/woodgatesupport" target="_blank" rel="noopener">ไปที่ Ko-fi</a>
+      <button id="kofiRefreshBtn">ตรวจสอบยอด</button>
+    </div>
+    <div id="kofi-status"></div>
+    <p class="kofi-note">หัวใจสำรองผูกกับเบราว์เซอร์นี้ ถ้าลืมใส่รหัสหรือย้ายเครื่อง ติดต่อผู้สร้างผ่าน Ko-fi พร้อมรหัสนี้</p>
+    <button id="kofiCloseBtn">ปิด</button>
   </div>
 
   <div id="howto-overlay" class="hidden">
@@ -5842,6 +5914,8 @@
     overlay.classList.remove('hidden');
     lbRender();
     supaRefresh();
+    renderBank();
+    refreshBank();
   }
   document.getElementById('howtoIconBtn').addEventListener('click', ()=>{
     howtoOpenedFromStart = false;
@@ -5885,6 +5959,8 @@
       'ตัวละคร <b>Lv.' + player.lv + '</b> • HP <b>' + Math.max(0, Math.round(player.hp)) + '/' + player.maxHp + '</b>';
     disarmRestart();
     pauseOverlay.classList.remove('hidden');
+    renderBank();
+    refreshBank();
   }
 
   function resumeGame(){
@@ -5954,7 +6030,7 @@
   window.addEventListener('keydown', (e)=>{
     if (typingInField(e)) return;
     if (e.key !== 'Escape' && e.key !== 'p' && e.key !== 'P') return;
-    if (!howtoOverlay.classList.contains('hidden')) return;
+    if (!howtoOverlay.classList.contains('hidden') || !kofiOverlay.classList.contains('hidden')) return;
     paused ? resumeGame() : pauseGame();
   });
   // switching away from the tab or app pauses automatically
@@ -6007,6 +6083,119 @@
       return lb.volatileId || (lb.volatileId = 'v-' + Date.now().toString(36) + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2));
     }
   }
+
+  // ---------- Spare hearts (Ko-fi) ----------
+  // Supporters put their code in the Ko-fi message; the kofi-webhook Edge Function
+  // credits their wallet on Supabase. Hearts are spent through the use_heart RPC,
+  // so the balance lives on the server, tied to this browser's anonymous id.
+  const KOFI_URL = 'https://ko-fi.com/woodgatesupport';
+  const bank = { code: null, hearts: 0, ready: false, busy: false, failed: false };
+  const kofiOverlay = document.getElementById('kofi-overlay');
+  const kofiStatus = document.getElementById('kofi-status');
+
+  async function refreshBank(){
+    try {
+      const rows = await supaRpc('heart_wallet', { p_player_id: playerId() });
+      const row = Array.isArray(rows) ? rows[0] : rows;
+      if (row){ bank.code = row.code; bank.hearts = row.hearts; bank.ready = true; bank.failed = false; }
+    } catch(e){
+      bank.failed = true;
+    }
+    renderBank();
+    return bank.ready;
+  }
+
+  function renderBank(){
+    document.querySelectorAll('.kofi-count').forEach(el => { el.textContent = bank.ready ? bank.hearts : '-'; });
+    document.getElementById('kofiHearts').textContent = bank.ready ? bank.hearts : '-';
+    document.getElementById('kofiCode').textContent = bank.code || (bank.failed ? 'เชื่อมต่อไม่ได้' : 'กำลังโหลด...');
+    const cont = document.getElementById('continueHeartBtn');
+    if (cont) cont.hidden = !(bank.ready && bank.hearts > 0);
+    const useBtn = document.getElementById('pauseUseHeartBtn');
+    if (useBtn) useBtn.disabled = !(bank.ready && bank.hearts > 0 && player.hearts < player.maxHearts) || bank.busy;
+  }
+
+  async function spendSpareHeart(){
+    if (bank.busy || !bank.ready || bank.hearts <= 0) return false;
+    bank.busy = true;
+    renderBank();
+    try {
+      const left = await supaRpc('use_heart', { p_player_id: playerId() });
+      bank.hearts = typeof left === 'number' ? left : Math.max(0, bank.hearts - 1);
+      return true;
+    } catch(e){
+      await refreshBank();
+      return false;
+    } finally {
+      bank.busy = false;
+      renderBank();
+    }
+  }
+
+  // game over -> one more heart and straight back into the fight
+  async function continueWithSpareHeart(){
+    const btn = document.getElementById('continueHeartBtn');
+    if (btn) btn.disabled = true;
+    if (!(await spendSpareHeart())){ if (btn) btn.disabled = false; return; }
+    overlay.classList.add('hidden');
+    player.hearts = 1;
+    player.hp = player.maxHp;
+    player.invuln = 2;
+    state.running = true;
+    state.lastTime = performance.now();
+    updateHud();
+    showBanner('ใช้หัวใจสำรอง! สู้ต่อ', 1400);
+  }
+
+  // while paused: top one heart back up
+  async function useSpareHeartNow(){
+    if (player.hearts >= player.maxHearts) return;
+    if (await spendSpareHeart()){
+      player.hearts += 1;
+      updateHud();
+      renderBank();
+    }
+  }
+
+  function openKofi(){
+    kofiStatus.textContent = '';
+    kofiStatus.classList.remove('err');
+    kofiOverlay.classList.remove('hidden');
+    renderBank();
+    const before = bank.ready ? bank.hearts : null;
+    refreshBank().then(()=>{
+      if (before !== null && bank.hearts > before) kofiStatus.textContent = 'ได้รับหัวใจเพิ่ม ' + (bank.hearts - before) + ' ดวง ขอบคุณที่สนับสนุน!';
+    });
+  }
+  function closeKofi(){ kofiOverlay.classList.add('hidden'); renderBank(); }
+
+  document.addEventListener('click', (e)=>{ if (e.target.closest && e.target.closest('.kofi-open')) openKofi(); });
+  document.getElementById('kofiCloseBtn').addEventListener('click', closeKofi);
+  document.getElementById('pauseUseHeartBtn').addEventListener('click', useSpareHeartNow);
+  document.getElementById('kofiLink').href = KOFI_URL;
+  document.getElementById('kofiRefreshBtn').addEventListener('click', async ()=>{
+    kofiStatus.classList.remove('err');
+    kofiStatus.textContent = 'กำลังตรวจสอบ...';
+    const before = bank.hearts;
+    const ok = await refreshBank();
+    if (!ok){ kofiStatus.classList.add('err'); kofiStatus.textContent = 'เชื่อมต่อไม่ได้ ลองเปิดเกมจาก GitHub Pages'; return; }
+    kofiStatus.textContent = bank.hearts > before ? 'ได้รับหัวใจเพิ่ม ' + (bank.hearts - before) + ' ดวง ขอบคุณที่สนับสนุน!'
+                                                  : 'ยอดล่าสุด ' + bank.hearts + ' ดวง (ถ้าเพิ่งจ่าย รอสักครู่แล้วลองใหม่)';
+  });
+  document.getElementById('kofiCopyBtn').addEventListener('click', async ()=>{
+    if (!bank.code) return;
+    try { await navigator.clipboard.writeText(bank.code); kofiStatus.textContent = 'คัดลอกรหัสแล้ว'; }
+    catch(e){
+      const sel = window.getSelection(), range = document.createRange();
+      range.selectNodeContents(document.getElementById('kofiCode'));
+      sel.removeAllRanges(); sel.addRange(range);
+      kofiStatus.textContent = 'เลือกรหัสไว้แล้ว กดคัดลอกเองได้เลย';
+    }
+  });
+  window.addEventListener('keydown', (e)=>{
+    if (e.key === 'Escape' && !kofiOverlay.classList.contains('hidden')){ e.stopImmediatePropagation(); closeKofi(); }
+  }, true);
+  refreshBank();
 
   async function supaRpc(fn, body){
     const ctrl = new AbortController();
@@ -6401,13 +6590,18 @@
       <h1>หัวใจหมดแล้ว</h1>
       <p>${state.playerName ? 'ผู้เล่น <span class="stat" id="goName"></span><br>' : ''}ความยาก <span class="stat">${DIFFICULTIES[state.difficulty].name}</span><br>ไปถึงดันเจียนชั้น <span class="stat">${state.level}</span><br>
       คะแนนรวม <span class="stat">${state.score}</span></p>
+      <button id="continueHeartBtn" hidden>♥ ใช้หัวใจสำรองเล่นต่อ (<span class="kofi-count">-</span>)</button>
       <button id="restartBtn">ลองอีกครั้ง</button>
+      <button class="kofi-open">♥ เติมหัวใจสำรองผ่าน Ko-fi</button>
       <div class="lb"><div class="lb-title">ตารางคะแนน</div><div class="lb-tabs"><button class="lb-tab" data-tab="top">ผู้เล่นอื่น</button><button class="lb-tab" data-tab="mine">คะแนนของฉัน</button></div><div class="lb-panel" data-panel="top"><ol class="lb-list lb-top"><li class="lb-empty">กำลังโหลด...</li></ol><div class="lb-note lb-top-note"></div></div><div class="lb-panel" data-panel="mine" hidden><div class="lb-mine-sum"></div><ol class="lb-list lb-mine"></ol><div class="lb-note lb-mine-note"></div></div></div>
     `;
     overlay.classList.remove('hidden');
     const goName = document.getElementById('goName');
     if (goName) goName.textContent = state.playerName;   // typed by the player: never as HTML
     document.getElementById('restartBtn').addEventListener('click', startGame, {once:true});
+    document.getElementById('continueHeartBtn').addEventListener('click', continueWithSpareHeart);
+    renderBank();
+    refreshBank();
     lbSubmit(state.score, state.level, player.lv);
   }
 
