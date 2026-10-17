@@ -2321,12 +2321,12 @@
   // ---------- Shadow: a black copy of the hero ----------
   // It copies the hero as they are when the dungeon opens: max HP, weapon, armour
   // (its percentage cuts the hero's hits), skill and the potion in the slot.
-  // It dodges half of all hits. 1% of dungeons up to dungeon 100, then +15% per
+  // It dodges half of all hits. 1% of dungeons up to dungeon 100, then +5% per
   // dungeon after that, up to 50%.
   const SHADOW_DODGE = 0.5;
   const SHADOW_SKILL_WINDUP = 0.6;
   function shadowChance(level){
-    return level <= FINAL_LEVEL ? 0.01 : Math.min(0.5, 0.01 + 0.15 * (level - FINAL_LEVEL));
+    return level <= FINAL_LEVEL ? 0.01 : Math.min(0.5, 0.01 + 0.05 * (level - FINAL_LEVEL));
   }
 
   function spawnShadow(level){
