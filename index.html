@@ -589,6 +589,14 @@
     box-shadow:0 4px 0 var(--stone-950);
   }
   #kofiLink{ background:#29abe0; border-color:#7fd3f5; box-shadow:0 4px 0 #1b6f91; }
+  #stripePayBtn{
+    font-family:'Press Start 2P', monospace; font-size:11px; color:#fff;
+    padding:12px 16px; border-radius:4px; border:2px solid #a39bff; background:#635bff;
+    box-shadow:0 4px 0 #3d36b3;
+  }
+  #stripePayBtn:disabled{ opacity:0.5; }
+  .kofi-or{ font-size:11px; color:var(--bone-300); opacity:0.7; margin:-4px 0; }
+  .kofi-way{ font-size:11px; color:var(--bone-300); margin:0; max-width:300px; line-height:1.5; }
   #kofi-status{ min-height:16px; font-size:11px; color:var(--moss-300); }
   #kofi-status.err{ color:var(--blood-300); }
   .kofi-note{ font-size:10px; color:var(--bone-300); opacity:0.7; margin:0; max-width:300px; line-height:1.5; }
@@ -764,10 +772,13 @@
   <div id="kofi-overlay" class="hidden">
     <h1>♥ เติมหัวใจสำรอง</h1>
     <div id="kofi-bank">หัวใจสำรองของคุณ: <b id="kofiHearts">-</b> ดวง</div>
-    <p class="kofi-rate">สนับสนุนผู้สร้างเกมผ่าน Ko-fi<br><b>1 กาแฟ (฿50) = 3 หัวใจสำรอง</b> ใช้เล่นต่อตอนหัวใจหมด หรือเติมหัวใจระหว่างหยุดเกม</p>
+    <p class="kofi-rate">สนับสนุนผู้สร้างเกม<br><b>฿50 = 3 หัวใจสำรอง</b> ใช้เล่นต่อตอนหัวใจหมด หรือเติมหัวใจระหว่างหยุดเกม</p>
+    <button id="stripePayBtn">จ่ายด้วย PromptPay / บัตร</button>
+    <p class="kofi-way">ผ่าน Stripe • เลือกจำนวนได้ • ไม่ต้องใส่รหัส หัวใจเข้าเครื่องนี้อัตโนมัติ</p>
+    <div class="kofi-or">— หรือสนับสนุนผ่าน Ko-fi (บัตร / PayPal) —</div>
     <div class="kofi-code-box"><span class="kofi-code-label">รหัสของคุณ</span><span id="kofiCode">กำลังโหลด...</span><button id="kofiCopyBtn">คัดลอก</button></div>
     <ol class="kofi-steps">
-      <li>กด <b>ไปที่ Ko-fi</b> แล้วเลือกจำนวนกาแฟ</li>
+      <li>กด <b>ไปที่ Ko-fi</b> แล้วเลือกจำนวนกาแฟ (แก้วละ ฿50)</li>
       <li>ใส่รหัสด้านบนในช่อง <b>ข้อความ (message)</b> ตอนสนับสนุน</li>
       <li>กลับมากด <b>ตรวจสอบยอด</b> หัวใจจะเข้าภายในไม่กี่นาที</li>
     </ol>
@@ -6157,6 +6168,68 @@
     }
   }
 
+  // Stripe Checkout: the server makes the payment page for this browser's wallet,
+  // so the hearts land here without a code. Opens in a new tab so a paused run survives.
+  const STRIPE_CHECKOUT_URL = SUPABASE_URL + '/functions/v1/stripe-checkout';
+  async function payWithStripe(){
+    const btn = document.getElementById('stripePayBtn');
+    if (btn.disabled) return;
+    btn.disabled = true;
+    kofiStatus.classList.remove('err');
+    kofiStatus.textContent = 'กำลังเปิดหน้าชำระเงิน...';
+    // the window has to open inside the click, before the network round trip
+    let win = null;
+    try { win = window.open('', '_blank'); } catch(e){}
+    try {
+      const r = await fetch(STRIPE_CHECKOUT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: SUPABASE_KEY },
+        body: JSON.stringify({ player_id: playerId(), return_url: location.origin + location.pathname }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok || !data.url) throw new Error(data.error || ('HTTP ' + r.status));
+      if (win && !win.closed){
+        win.location.href = data.url;
+        kofiStatus.textContent = 'จ่ายในแท็บใหม่ เสร็จแล้วกลับมากด "ตรวจสอบยอด"';
+      } else {
+        location.href = data.url;   // pop-ups blocked: go there in this tab
+      }
+    } catch(e){
+      if (win && !win.closed) win.close();
+      kofiStatus.classList.add('err');
+      kofiStatus.textContent = /not configured/.test(e.message) ? 'ยังไม่เปิดรับชำระผ่าน Stripe' : 'เปิดหน้าชำระเงินไม่ได้ ลองใหม่อีกครั้ง';
+    } finally {
+      btn.disabled = false;
+    }
+  }
+  document.getElementById('stripePayBtn').addEventListener('click', payWithStripe);
+
+  // back from Stripe: show the panel and poll the balance while the webhook lands
+  function handleStripeReturn(){
+    const q = new URLSearchParams(location.search);
+    const result = q.get('stripe');
+    if (!result) return;
+    try { history.replaceState(null, '', location.pathname + location.hash); } catch(e){}
+    openKofi();
+    if (result !== 'success'){ kofiStatus.textContent = 'ยกเลิกการชำระเงินแล้ว'; return; }
+    kofiStatus.classList.remove('err');
+    kofiStatus.textContent = 'ชำระเงินสำเร็จ! กำลังรอหัวใจเข้า...';
+    const start = bank.ready ? bank.hearts : null;
+    let tries = 0;
+    const poll = async ()=>{
+      tries++;
+      await refreshBank();
+      if (start !== null && bank.hearts > start){
+        kofiStatus.textContent = 'ได้รับหัวใจเพิ่ม ' + (bank.hearts - start) + ' ดวง ขอบคุณที่สนับสนุน!';
+      } else if (tries < 10){
+        setTimeout(poll, 3000);
+      } else {
+        kofiStatus.textContent = 'ยังไม่เห็นหัวใจเข้า (PromptPay อาจใช้เวลาสักครู่) กด "ตรวจสอบยอด" อีกครั้งภายหลัง';
+      }
+    };
+    setTimeout(poll, 1500);
+  }
+
   function openKofi(){
     kofiStatus.textContent = '';
     kofiStatus.classList.remove('err');
@@ -6195,7 +6268,7 @@
   window.addEventListener('keydown', (e)=>{
     if (e.key === 'Escape' && !kofiOverlay.classList.contains('hidden')){ e.stopImmediatePropagation(); closeKofi(); }
   }, true);
-  refreshBank();
+  refreshBank().then(handleStripeReturn);
 
   async function supaRpc(fn, body){
     const ctrl = new AbortController();
