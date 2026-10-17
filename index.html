@@ -1604,6 +1604,7 @@
   // mod(src) returns a damage multiplier; src = { kind:'weapon'|'skill', element }
   // dodge = chance that, after being hit, the monster sidesteps the next attack
   const MONSTER_TRAITS = {
+    shadow:   { name:'ร่างเงา',      desc:'ลอกอาวุธ เกราะ สกิล และ HP ของคุณ • หลบได้ 50%', dodge:0 },
     mimic:    { name:'แกล้งตาย',     desc:'ปลอมตัวเป็นหีบสมบัติ ไม่ขยับไปไหน', dodge:0 },
     goblin:   { name:'ว่องไว',      desc:'หลบการโจมตีเก่ง', dodge:0.35 },
     wolf:     { name:'ปราดเปรียว',   desc:'หลบการโจมตีเก่งมาก', dodge:0.40 },
@@ -1738,6 +1739,12 @@
     if (m.hp <= 0) return false;
     if (m.patrol) alertMonster(m);
     const trait = MONSTER_TRAITS[m.kind];
+    if (m.isShadow && Math.random() < SHADOW_DODGE){
+      startDodge(m);
+      floatText(m, 'หลบ!', '#c79bff');
+      noteTrait(m, 'dodge');
+      return false;
+    }
     if (m.dodgeReady){
       m.dodgeReady = false;
       startDodge(m);
@@ -1745,7 +1752,7 @@
       noteTrait(m, 'dodge');
       return false;
     }
-    const mult = trait && trait.mod ? trait.mod(src) : 1;
+    const mult = (trait && trait.mod ? trait.mod(src) : 1) * (m.isShadow ? 1 - m.armorCut : 1);
     const dmg = Math.max(1, Math.round(raw * mult));
     // an elite's shield soaks every hit until it breaks
     const onShield = m.shield > 0;
@@ -2308,6 +2315,143 @@
         ctx.fillRect(gx - 4, gy - 1, 8, 2);
         ctx.globalAlpha = 1;
       }
+    }
+  }
+
+  // ---------- Shadow: a black copy of the hero ----------
+  // It copies the hero as they are when the dungeon opens: max HP, weapon, armour
+  // (its percentage cuts the hero's hits), skill and the potion in the slot.
+  // It dodges half of all hits. 1% of dungeons up to dungeon 100, then +15% per
+  // dungeon after that, up to 50%.
+  const SHADOW_DODGE = 0.5;
+  const SHADOW_SKILL_WINDUP = 0.6;
+  function shadowChance(level){
+    return level <= FINAL_LEVEL ? 0.01 : Math.min(0.5, 0.01 + 0.15 * (level - FINAL_LEVEL));
+  }
+
+  function spawnShadow(level){
+    const size = player.size;
+    let x, y, tries = 0;
+    do {
+      x = rand(30, WORLD_W - 30);
+      y = rand(30, WORLD_H - 30);
+      tries++;
+    } while ((dist({x,y}, player) < 180 || collidesWalls(x, y, size + 6) || !isReachablePoint(x, y)) && tries < 160);
+    // hits like the hero's weapon, but never softer than a boss of this depth
+    const dmg = Math.max(player.atk, monsterDamage('boss', level));
+    const skillDef = SKILLS[player.skill];
+    return {
+      x, y, size, hp: player.maxHp, maxHp: player.maxHp, speed: player.speed * 0.85, dmg,
+      type: 'shadow', kind: 'shadow', name: 'ร่างเงา', color: '#2a1840', isShadow: true,
+      armorCut: Math.min(ARMOR_REDUCTION_MAX, (player.armorPct || 0) / 100),
+      armorKey: ARMOR_ATLAS_KEY[player.armorRarity] || 'armor_starter',
+      weaponIcon: player.weaponIcon,
+      skill: skillDef ? player.skill : null, skillCd: 2.5, castT: 0, castRange: 0,
+      skillDmg: skillDef ? Math.round(dmg * Math.min(1.5, skillDef.power)) : 0,   // the copied skill, up to 1.5x a hit
+      slot: player.slot,
+      attackCooldown: 0.6, attackCooldownMax: 0.8, hitFlash: 0, swingT: 0,
+      path: null, pathIndex: 0, pathRecalcTimer: 0, patrol: false,
+      facing: { x: 0, y: 1 }, idle: 0,
+    };
+  }
+
+  // the copied potion, drunk once when low
+  function shadowUsePotion(m){
+    if (!m.slot || m.hp > m.maxHp * 0.35) return;
+    const pot = POTIONS[m.slot];
+    if (m.slot === 'shield'){
+      m.shieldMax = Math.round(m.maxHp * SHIELD_POTION_SHARE);
+      m.shield = Math.max(m.shield || 0, m.shieldMax);
+    } else if (pot && pot.heal){
+      m.hp = Math.min(m.maxHp, m.hp + pot.heal);
+    }
+    floatText(m, (pot ? pot.name : 'ยา') + '!', '#c79bff');
+    spawnParticles(m.x, m.y, '#c79bff', 10);
+    m.slot = null;
+  }
+
+  // the copied skill: a short wind-up ring, then a hit if the hero is still inside it
+  function updateShadowSkill(m, dt){
+    const def = SKILLS[m.skill];
+    if (!def) return false;
+    if (m.skillCd > 0) m.skillCd -= dt;
+    const d = Math.hypot(player.x - m.x, player.y - m.y);
+    if (m.castT > 0){
+      m.castT -= dt;
+      m.moving = false;
+      m.facing = { x: (player.x - m.x) / (d || 1), y: (player.y - m.y) / (d || 1) };
+      if (m.castT <= 0){
+        spawnParticles(m.x, m.y, def.color, 18);
+        m.swingT = 0.25;
+        if (d <= m.castRange && player.invuln <= 0){
+          const dmgTaken = shieldAbsorb(armorReduce(m.skillDmg));
+          player.hp -= dmgTaken;
+          player.invuln = 0.6;
+          spawnParticles(player.x, player.y, def.color, 10);
+          spawnDamageNumber(player.x, player.y - player.size/2, dmgTaken);
+          flashScreen();
+        }
+        m.skillCd = def.cd * 1.5;
+      }
+      return true;
+    }
+    const range = def.tiles * TILE_SIZE + player.size / 2;
+    if (m.skillCd <= 0 && d <= range){
+      m.castT = SHADOW_SKILL_WINDUP;
+      m.castRange = range;
+      return true;
+    }
+    return false;
+  }
+
+  // a black silhouette of an armour sheet, made once per sheet
+  const SILHOUETTES = {};
+  function silhouetteSheet(key){
+    if (SILHOUETTES[key]) return SILHOUETTES[key];
+    const src = CHARACTER_SPRITES[key];
+    if (!src || !src.loaded) return null;
+    const c = document.createElement('canvas');
+    c.width = src.img.naturalWidth; c.height = src.img.naturalHeight;
+    const g = c.getContext('2d');
+    g.drawImage(src.img, 0, 0);
+    g.globalCompositeOperation = 'source-atop';
+    g.fillStyle = '#140b22';
+    g.fillRect(0, 0, c.width, c.height);
+    return (SILHOUETTES[key] = { img: c, loaded: true, w: c.width, h: c.height });
+  }
+
+  function drawShadowHero(m){
+    const size = Math.max(m.size * 2.6, 52);
+    if (m.castT > 0){
+      const def = SKILLS[m.skill] || { color: '#c79bff' };
+      const k = 1 - m.castT / SHADOW_SKILL_WINDUP;
+      ctx.save();
+      ctx.globalAlpha = 0.12 + 0.25 * k;
+      ctx.fillStyle = def.color;
+      ctx.beginPath(); ctx.arc(m.x, m.y, m.castRange * k, 0, Math.PI*2); ctx.fill();
+      ctx.globalAlpha = 0.8;
+      ctx.strokeStyle = def.color; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(m.x, m.y, m.castRange, 0, Math.PI*2); ctx.stroke();
+      ctx.restore();
+    }
+    // dark aura and a floor shadow
+    const g = ctx.createRadialGradient(m.x, m.y, 2, m.x, m.y, size * 0.6);
+    g.addColorStop(0, 'rgba(120,60,200,0.45)'); g.addColorStop(1, 'rgba(40,10,80,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(m.x, m.y, size * 0.6, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    ctx.beginPath(); ctx.ellipse(m.x, m.y + 13, 11, 4, 0, 0, Math.PI*2); ctx.fill();
+    const fx = m.facing.x, fy = m.facing.y;
+    const dir = cardinalDir(fx, fy);
+    const hx = m.x, hy = m.y - size * 0.06;
+    const atkT = m.swingT > 0 ? clamp(1 - m.swingT / 0.25, 0, 1) : null;
+    const sheet = silhouetteSheet(m.armorKey);
+    if (m.weaponIcon) drawHeldWeapon(m.weaponIcon, dir, hx, hy, size, atkT, true);
+    const drew = sheet ? drawSprite(m.armorKey, fx, fy, !!m.moving || atkT !== null, hx, hy, size, sheet) : false;
+    if (m.weaponIcon) drawHeldWeapon(m.weaponIcon, dir, hx, hy, size, atkT, false);
+    if (!drew){
+      ctx.fillStyle = '#140b22';
+      ctx.beginPath(); ctx.arc(m.x, m.y, m.size / 2, 0, Math.PI*2); ctx.fill();
     }
   }
 
@@ -3173,6 +3317,7 @@
   // ---------- Themed monster rendering ----------
   function drawMonsterBody(m){
     if (m.isMimic){ drawMimic(m); return; }
+    if (m.isShadow){ drawShadowHero(m); return; }
     const facing = m.facing || {x:0, y:1};
     const drawSize = Math.max(m.size * 2.3, 46);
     // elites wear different colours with a gold outline (pre-tinted sheet)
@@ -4035,6 +4180,7 @@
     const base = 4 + state.level * 2;
     if (m.isBoss) return base * 8;
     if (m.isMimic) return base * 4;
+    if (m.isShadow) return base * 6;
     if (m.elite) return Math.round(base * (m.type === 'tank' ? 3 : 2));
     if (m.type === 'tank') return Math.round(base * 1.5);
     return base;
@@ -4530,6 +4676,11 @@
     }
     const eliteCount = applyEliteShields(state.level);
     if (state.level >= MIMIC_MIN_LEVEL && Math.random() < MIMIC_CHANCE) state.monsters.push(spawnMimic(state.level));
+    if (Math.random() < shadowChance(state.level)){
+      state.monsters.push(spawnShadow(state.level));
+      const mazeRef = state.maze;
+      setTimeout(()=>{ if (state.maze === mazeRef) showBanner('ร่างเงาของคุณปรากฏตัว!', 1800); }, 2200);
+    }
     if (eliteCount){
       const mazeRef = state.maze;
       setTimeout(()=>{ if (state.maze === mazeRef) showBanner('มอนสเตอร์โล่ปรากฏ ' + eliteCount + ' ตัว! ตีโล่ให้แตกก่อน', 1700); }, state.maze.fountain ? 3000 : 1400);
@@ -4792,6 +4943,14 @@
         if (m.attackCooldown > 0) m.attackCooldown -= dt;
         continue;
       }
+      if (m.isShadow){
+        if (m.swingT > 0) m.swingT -= dt;
+        shadowUsePotion(m);
+        if (updateShadowSkill(m, dt)){
+          if (m.attackCooldown > 0) m.attackCooldown -= dt;
+          continue;
+        }
+      }
       if (m.isBoss) syncBossHp(m);
       if (m.isBoss && updateBossCast(m, dt, Math.hypot(player.x - m.x, player.y - m.y))){
         if (m.attackCooldown > 0) m.attackCooldown -= dt;
@@ -4881,6 +5040,7 @@
         player.hp -= dmgTaken;
         player.invuln = 0.6;
         m.attackCooldown = m.attackCooldownMax;
+        if (m.isShadow) m.swingT = 0.25;
         spawnParticles(player.x, player.y, '#d9685f');
         spawnDamageNumber(player.x, player.y - player.size/2, dmgTaken);
         flashScreen();
@@ -4907,6 +5067,7 @@
         gainXp(monsterXp(m));
         if (m.isBoss) maybeDropBossBonus(m.x, m.y, state.level);
         if (m.isMimic) dropMimicTreasure(m, state.level);
+        if (m.isShadow) maybeDropBossBonus(m.x, m.y, state.level);
       }
     }
     state.monsters = state.monsters.filter(m => m.hp > 0);
@@ -5532,6 +5693,13 @@
           ctx.textAlign = 'left';
         }
 
+        if (m.isShadow){
+          ctx.textAlign = 'center';
+          ctx.font = "" + 7 * UI_SCALE + "px 'IBM Plex Mono', monospace";
+          ctx.fillStyle = '#c79bff';
+          ctx.fillText(m.name, m.x, m.y - m.size/2 - 15);
+          ctx.textAlign = 'left';
+        }
         if (m.isMimic){
           if (!m.awake) continue;
           ctx.textAlign = 'center';
