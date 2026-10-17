@@ -2321,8 +2321,9 @@
   // ---------- Shadow: a black copy of the hero ----------
   // It copies the hero as they are when the dungeon opens: max HP, weapon, armour
   // (its percentage cuts the hero's hits), skill and the potion in the slot.
-  // It dodges half of all hits. 1% of dungeons up to dungeon 100, then +5% per
-  // dungeon after that, up to 50%.
+  // It dodges half of all hits. Shadows only appear in boss dungeons, gathered
+  // around the boss: 1% of those up to dungeon 100, then +5% per dungeon after
+  // that, up to 50%.
   const SHADOW_DODGE = 0.5;
   const SHADOW_SKILL_WINDUP = 0.6;
   function shadowChance(level){
@@ -2339,14 +2340,22 @@
     return Math.max(1, Math.min(SHADOW_MAX_GROUP, n));
   }
 
-  function spawnShadow(level){
+  // somewhere in a ring around the boss, on open, reachable floor
+  function spotNearBoss(boss, size){
+    for (let tries = 0; tries < 80; tries++){
+      const a = rand(0, Math.PI * 2), r = rand(boss.size / 2 + 28, boss.size / 2 + 90);
+      const x = boss.x + Math.cos(a) * r, y = boss.y + Math.sin(a) * r;
+      if (x < 20 || y < 20 || x > WORLD_W - 20 || y > WORLD_H - 20) continue;
+      if (collidesWalls(x, y, size + 6) || !isReachablePoint(x, y)) continue;
+      if (dist({x, y}, player) < 160) continue;
+      return { x, y };
+    }
+    return { x: boss.x + rand(-20, 20), y: boss.y + rand(-20, 20) };
+  }
+
+  function spawnShadow(level, boss){
     const size = player.size;
-    let x, y, tries = 0;
-    do {
-      x = rand(30, WORLD_W - 30);
-      y = rand(30, WORLD_H - 30);
-      tries++;
-    } while ((dist({x,y}, player) < 180 || collidesWalls(x, y, size + 6) || !isReachablePoint(x, y)) && tries < 160);
+    const { x, y } = spotNearBoss(boss, size);
     // hits like the hero's weapon, but never softer than a boss of this depth
     const dmg = Math.max(player.atk, monsterDamage('boss', level));
     const skillDef = SKILLS[player.skill];
@@ -4717,9 +4726,10 @@
     }
     const eliteCount = applyEliteShields(state.level);
     if (state.level >= MIMIC_MIN_LEVEL && Math.random() < MIMIC_CHANCE) state.monsters.push(spawnMimic(state.level));
-    if (Math.random() < shadowChance(state.level)){
+    const boss = bossLevel ? state.monsters.find(m => m.isBoss) : null;
+    if (boss && Math.random() < shadowChance(state.level)){
       const count = shadowCount(state.level);
-      for (let i = 0; i < count; i++) state.monsters.push(spawnShadow(state.level));
+      for (let i = 0; i < count; i++) state.monsters.push(spawnShadow(state.level, boss));
       const mazeRef = state.maze;
       setTimeout(()=>{ if (state.maze === mazeRef) showBanner(count > 1 ? 'ร่างเงา ' + count + ' ตัวปรากฏตัว!' : 'ร่างเงาของคุณปรากฏตัว!', 1800); }, 2200);
     }
