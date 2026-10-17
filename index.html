@@ -4,6 +4,16 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Wood Gate Beyond</title>
+<meta name="description" content="Pixel dungeon crawler • 100 ดันเจียน • เล่นฟรีบนเบราว์เซอร์ มือถือและคอม">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Wood Gate Beyond">
+<meta property="og:description" content="Pixel dungeon crawler • 100 ดันเจียน • เล่นฟรีบนเบราว์เซอร์ มือถือและคอม">
+<meta property="og:url" content="https://tumasorn.github.io/wood-gate-beyond/">
+<meta property="og:image" content="https://tumasorn.github.io/wood-gate-beyond/sprites/cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://tumasorn.github.io/wood-gate-beyond/sprites/cover.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
@@ -25,7 +35,7 @@
   }
   /* bigger screens get bigger text: these panels scale as a whole */
   #hud, #banner, #drops-panel, #quick-slots,
-  #overlay, #pause-overlay, #shop-overlay, #howto-overlay, #kofi-overlay{ zoom:var(--ui); }
+  #overlay, #pause-overlay, #shop-overlay, #howto-overlay, #kofi-overlay, #share-overlay{ zoom:var(--ui); }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
   html,body{
     margin:0; padding:0; width:100%; height:100%;
@@ -613,6 +623,36 @@
   .pause-actions #pauseUseHeartBtn{ background:#5e2a2a; border-color:var(--blood-300); }
   .pause-actions #pauseUseHeartBtn:disabled{ opacity:0.4; }
 
+  /* share the best score */
+  .share-best{
+    font-family:'IBM Plex Mono', monospace; font-size:12px; font-weight:600; color:#bfe3ff; cursor:pointer;
+    background:rgba(41,171,224,0.16); border:1px solid rgba(127,211,245,0.6); border-radius:14px; padding:6px 12px;
+  }
+  .game-link{ font-size:11px; color:var(--bone-300); opacity:0.85; margin-top:-10px; }
+  .game-link a{ color:#7fd3f5; text-decoration:none; }
+  #share-overlay{
+    position:absolute; inset:0; z-index:28; background:rgba(10,8,7,0.94);
+    display:flex; flex-direction:column; align-items:center; justify-content:center; justify-content:safe center;
+    gap:12px; padding:18px; text-align:center; overflow-y:auto;
+  }
+  #share-overlay.hidden{ display:none; }
+  #share-overlay h1{ font-family:'Press Start 2P', monospace; color:#7fd3f5; font-size:15px; margin:0; }
+  #share-text{ white-space:pre-line; font-size:13px; line-height:1.6; color:var(--bone-100); max-width:300px;
+               background:var(--stone-800); border:1px solid var(--stone-700); border-radius:4px; padding:10px 12px;
+               user-select:text; -webkit-user-select:text; }
+  .share-actions{ display:flex; flex-wrap:wrap; gap:8px; justify-content:center; max-width:320px; }
+  .share-actions a, .share-actions button{
+    font-family:'Press Start 2P', monospace; font-size:10px; color:#fff; text-decoration:none; cursor:pointer;
+    padding:11px 12px; border-radius:4px; border:2px solid rgba(255,255,255,0.25);
+  }
+  #shareFb{ background:#1877f2; } #shareX{ background:#000; } #shareLine{ background:#06c755; }
+  #shareCopy{ background:var(--stone-700); }
+  #share-status{ min-height:14px; font-size:11px; color:var(--moss-300); }
+  #shareCloseBtn{
+    font-family:'Press Start 2P', monospace; font-size:11px; color:var(--bone-100);
+    padding:12px 18px; border-radius:4px; border:2px solid var(--stone-700); background:var(--stone-800);
+  }
+
   #howto-overlay{
     position:absolute; inset:0; z-index:25;
     background:rgba(10,8,7,0.95);
@@ -727,6 +767,8 @@
       <button id="howtoBtn">วิธีเล่น</button>
     </div>
     <button class="kofi-open">♥ หัวใจสำรอง <b class="kofi-count">-</b> • เติมผ่าน Ko-fi</button>
+    <button class="share-best">📣 แชร์คะแนนสูงสุด</button>
+    <div class="game-link">ลิงก์เกม: <a href="https://tumasorn.github.io/wood-gate-beyond/" target="_blank" rel="noopener">tumasorn.github.io/wood-gate-beyond</a></div>
     <div class="lb"><div class="lb-title">ตารางคะแนน</div><div class="lb-tabs"><button class="lb-tab" data-tab="top">ผู้เล่นอื่น</button><button class="lb-tab" data-tab="mine">คะแนนของฉัน</button></div><div class="lb-panel" data-panel="top"><ol class="lb-list lb-top"><li class="lb-empty">กำลังโหลด...</li></ol><div class="lb-note lb-top-note"></div></div><div class="lb-panel" data-panel="mine" hidden><div class="lb-mine-sum"></div><ol class="lb-list lb-mine"></ol><div class="lb-note lb-mine-note"></div></div></div>
   </div>
 
@@ -789,6 +831,19 @@
     <div id="kofi-status"></div>
     <p class="kofi-note">หัวใจสำรองผูกกับเบราว์เซอร์นี้ ถ้าลืมใส่รหัสหรือย้ายเครื่อง ติดต่อผู้สร้างผ่าน Ko-fi พร้อมรหัสนี้</p>
     <button id="kofiCloseBtn">ปิด</button>
+  </div>
+
+  <div id="share-overlay" class="hidden">
+    <h1>📣 แชร์คะแนน</h1>
+    <div id="share-text"></div>
+    <div class="share-actions">
+      <a id="shareFb" target="_blank" rel="noopener">Facebook</a>
+      <a id="shareX" target="_blank" rel="noopener">X</a>
+      <a id="shareLine" target="_blank" rel="noopener">LINE</a>
+      <button id="shareCopy">คัดลอก</button>
+    </div>
+    <div id="share-status"></div>
+    <button id="shareCloseBtn">ปิด</button>
   </div>
 
   <div id="howto-overlay" class="hidden">
@@ -6041,7 +6096,7 @@
   window.addEventListener('keydown', (e)=>{
     if (typingInField(e)) return;
     if (e.key !== 'Escape' && e.key !== 'p' && e.key !== 'P') return;
-    if (!howtoOverlay.classList.contains('hidden') || !kofiOverlay.classList.contains('hidden')) return;
+    if (!howtoOverlay.classList.contains('hidden') || !kofiOverlay.classList.contains('hidden') || !shareOverlay.classList.contains('hidden')) return;
     paused ? resumeGame() : pauseGame();
   });
   // switching away from the tab or app pauses automatically
@@ -6269,6 +6324,57 @@
     if (e.key === 'Escape' && !kofiOverlay.classList.contains('hidden')){ e.stopImmediatePropagation(); closeKofi(); }
   }, true);
   refreshBank().then(handleStripeReturn);
+
+  // ---------- Share the best score ----------
+  // Phones get the system share sheet; elsewhere a small panel with
+  // Facebook / X / LINE links and a copy button. The game link is always included.
+  const GAME_SHARE_URL = 'https://tumasorn.github.io/wood-gate-beyond/';
+  const shareOverlay = document.getElementById('share-overlay');
+
+  function bestRun(){
+    let best = lbLocalLoad()[0] || null;
+    const online = lb.myShared;
+    if (online && Number(online.score) > (best ? best.score : -1)) best = { score: Number(online.score), level: online.level };
+    return best && best.score > 0 ? best : null;
+  }
+  function shareMessage(run){
+    const where = run.level > FINAL_LEVEL ? 'เคลียร์ครบ ' + FINAL_LEVEL + ' ดันเจียนแล้ว (ไปถึงด่าน ' + run.level + ')'
+                                          : 'ไปถึงดันเจียนชั้น ' + (run.level || '-');
+    return '🏆 คะแนนสูงสุดของฉันใน Wood Gate Beyond: ' + run.score + ' คะแนน\n' + where +
+           '\nมาท้าทำลายสถิติกันไหม? เล่นฟรีบนเบราว์เซอร์ 👇';
+  }
+  async function shareBest(){
+    const run = bestRun();
+    if (!run){ showBanner('ยังไม่มีคะแนน เล่นให้จบสักรอบก่อนนะ', 1600); return; }
+    const text = shareMessage(run);
+    if (navigator.share){
+      try { await navigator.share({ title: 'Wood Gate Beyond', text, url: GAME_SHARE_URL }); return; }
+      catch(e){ if (e && e.name === 'AbortError') return; }   // other failures fall back to the panel
+    }
+    const enc = encodeURIComponent;
+    document.getElementById('share-text').textContent = text + '\n' + GAME_SHARE_URL;
+    document.getElementById('shareFb').href = 'https://www.facebook.com/sharer/sharer.php?u=' + enc(GAME_SHARE_URL) + '&quote=' + enc(text);
+    document.getElementById('shareX').href = 'https://twitter.com/intent/tweet?text=' + enc(text) + '&url=' + enc(GAME_SHARE_URL);
+    document.getElementById('shareLine').href = 'https://social-plugins.line.me/lineit/share?url=' + enc(GAME_SHARE_URL) + '&text=' + enc(text);
+    document.getElementById('share-status').textContent = '';
+    shareOverlay.classList.remove('hidden');
+  }
+  document.addEventListener('click', (e)=>{ if (e.target.closest && e.target.closest('.share-best')) shareBest(); });
+  document.getElementById('shareCloseBtn').addEventListener('click', ()=> shareOverlay.classList.add('hidden'));
+  document.getElementById('shareCopy').addEventListener('click', async ()=>{
+    const msg = document.getElementById('share-text').textContent;
+    const out = document.getElementById('share-status');
+    try { await navigator.clipboard.writeText(msg); out.textContent = 'คัดลอกแล้ว วางแชร์ได้เลย'; }
+    catch(e){
+      const sel = window.getSelection(), range = document.createRange();
+      range.selectNodeContents(document.getElementById('share-text'));
+      sel.removeAllRanges(); sel.addRange(range);
+      out.textContent = 'เลือกข้อความไว้แล้ว กดคัดลอกเองได้เลย';
+    }
+  });
+  window.addEventListener('keydown', (e)=>{
+    if (e.key === 'Escape' && !shareOverlay.classList.contains('hidden')){ e.stopImmediatePropagation(); shareOverlay.classList.add('hidden'); }
+  }, true);
 
   async function supaRpc(fn, body){
     const ctrl = new AbortController();
@@ -6629,6 +6735,7 @@
       <div class="overlay-actions">${state.ending && state.ending.demo
         ? '<button id="restartBtn">ผจญภัยอีกครั้ง</button>'
         : '<button id="continueBtn">เล่นต่อ</button><button id="endRestartBtn">เริ่มใหม่</button>'}<button id="endMenuBtn">กลับเมนู</button></div>
+      ${state.ending && state.ending.demo ? '' : '<button class="share-best">📣 แชร์คะแนนสูงสุด</button>'}
       ${state.ending && state.ending.demo ? '' : '<p class="end-note">เล่นต่อ = ลุยดันเจียน ' + (FINAL_LEVEL + 1) + ' ขึ้นไปด้วยตัวละครเดิม คะแนนสะสมต่อจากนี้</p>'}
       <div class="lb"><div class="lb-title">ตารางคะแนน</div><div class="lb-tabs"><button class="lb-tab" data-tab="top">ผู้เล่นอื่น</button><button class="lb-tab" data-tab="mine">คะแนนของฉัน</button></div><div class="lb-panel" data-panel="top"><ol class="lb-list lb-top"><li class="lb-empty">กำลังโหลด...</li></ol><div class="lb-note lb-top-note"></div></div><div class="lb-panel" data-panel="mine" hidden><div class="lb-mine-sum"></div><ol class="lb-list lb-mine"></ol><div class="lb-note lb-mine-note"></div></div></div>
     `;
@@ -6665,6 +6772,7 @@
       คะแนนรวม <span class="stat">${state.score}</span></p>
       <button id="continueHeartBtn" hidden>♥ ใช้หัวใจสำรองเล่นต่อ (<span class="kofi-count">-</span>)</button>
       <button id="restartBtn">ลองอีกครั้ง</button>
+      <button class="share-best">📣 แชร์คะแนนสูงสุด</button>
       <button class="kofi-open">♥ เติมหัวใจสำรองผ่าน Ko-fi</button>
       <div class="lb"><div class="lb-title">ตารางคะแนน</div><div class="lb-tabs"><button class="lb-tab" data-tab="top">ผู้เล่นอื่น</button><button class="lb-tab" data-tab="mine">คะแนนของฉัน</button></div><div class="lb-panel" data-panel="top"><ol class="lb-list lb-top"><li class="lb-empty">กำลังโหลด...</li></ol><div class="lb-note lb-top-note"></div></div><div class="lb-panel" data-panel="mine" hidden><div class="lb-mine-sum"></div><ol class="lb-list lb-mine"></ol><div class="lb-note lb-mine-note"></div></div></div>
     `;
