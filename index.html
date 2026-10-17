@@ -2350,6 +2350,9 @@
     // hits like the hero's weapon, but never softer than a boss of this depth
     const dmg = Math.max(player.atk, monsterDamage('boss', level));
     const skillDef = SKILLS[player.skill];
+    // bake its look now, during the dungeon's opening effect, not on its first frame
+    silhouetteSheet(ARMOR_ATLAS_KEY[player.armorRarity] || 'armor_starter');
+    shadowAura();
     return {
       x, y, size, hp: player.maxHp, maxHp: player.maxHp, speed: player.speed * 0.85, dmg,
       type: 'shadow', kind: 'shadow', name: 'ร่างเงา', color: '#2a1840', isShadow: true,
@@ -2427,7 +2430,37 @@
     g.globalCompositeOperation = 'source-atop';
     g.fillStyle = '#140b22';
     g.fillRect(0, 0, c.width, c.height);
-    return (SILHOUETTES[key] = { img: c, loaded: true, w: c.width, h: c.height });
+    const entry = (SILHOUETTES[key] = { img: c, loaded: true, w: c.width, h: c.height });
+    // swap to a decoded image: drawing from a canvas costs a texture upload per draw
+    if (c.toBlob && window.URL) c.toBlob(blob => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const im = new Image();
+      im.onload = () => { entry.img = im; URL.revokeObjectURL(url); };
+      im.src = url;
+    }, 'image/png');
+    return entry;
+  }
+
+  // the purple aura, painted once and then just stamped under every shadow
+  const SHADOW_AURA = { img: null };
+  function shadowAura(){
+    if (SHADOW_AURA.img) return SHADOW_AURA.img;
+    const R = 64, c = document.createElement('canvas');
+    c.width = c.height = R * 2;
+    const g = c.getContext('2d');
+    const grad = g.createRadialGradient(R, R, 2, R, R, R);
+    grad.addColorStop(0, 'rgba(120,60,200,0.45)'); grad.addColorStop(1, 'rgba(40,10,80,0)');
+    g.fillStyle = grad; g.fillRect(0, 0, R * 2, R * 2);
+    SHADOW_AURA.img = c;
+    if (c.toBlob && window.URL) c.toBlob(blob => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const im = new Image();
+      im.onload = () => { SHADOW_AURA.img = im; URL.revokeObjectURL(url); };
+      im.src = url;
+    }, 'image/png');
+    return SHADOW_AURA.img;
   }
 
   function drawShadowHero(m){
@@ -2445,10 +2478,8 @@
       ctx.restore();
     }
     // dark aura and a floor shadow
-    const g = ctx.createRadialGradient(m.x, m.y, 2, m.x, m.y, size * 0.6);
-    g.addColorStop(0, 'rgba(120,60,200,0.45)'); g.addColorStop(1, 'rgba(40,10,80,0)');
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(m.x, m.y, size * 0.6, 0, Math.PI*2); ctx.fill();
+    const ar = size * 0.6;
+    ctx.drawImage(shadowAura(), m.x - ar, m.y - ar, ar * 2, ar * 2);
     ctx.fillStyle = 'rgba(0,0,0,0.45)';
     ctx.beginPath(); ctx.ellipse(m.x, m.y + 13, 11, 4, 0, 0, Math.PI*2); ctx.fill();
     const fx = m.facing.x, fy = m.facing.y;
