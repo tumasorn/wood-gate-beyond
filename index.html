@@ -2329,6 +2329,16 @@
     return level <= FINAL_LEVEL ? 0.01 : Math.min(0.5, 0.01 + 0.05 * (level - FINAL_LEVEL));
   }
 
+  // after 10+ shadows beaten this run they come in groups:
+  // ((kills x 1) - 10) / 5 + (dungeon / 100), rounded down, at least 1, at most SHADOW_MAX_GROUP
+  const SHADOW_MAX_GROUP = 10;
+  function shadowCount(level){
+    const kills = state.shadowKills || 0;
+    if (kills < 10) return 1;
+    const n = Math.floor(((kills * 1) - 10) / 5 + (level / 100));
+    return Math.max(1, Math.min(SHADOW_MAX_GROUP, n));
+  }
+
   function spawnShadow(level){
     const size = player.size;
     let x, y, tries = 0;
@@ -4677,9 +4687,10 @@
     const eliteCount = applyEliteShields(state.level);
     if (state.level >= MIMIC_MIN_LEVEL && Math.random() < MIMIC_CHANCE) state.monsters.push(spawnMimic(state.level));
     if (Math.random() < shadowChance(state.level)){
-      state.monsters.push(spawnShadow(state.level));
+      const count = shadowCount(state.level);
+      for (let i = 0; i < count; i++) state.monsters.push(spawnShadow(state.level));
       const mazeRef = state.maze;
-      setTimeout(()=>{ if (state.maze === mazeRef) showBanner('ร่างเงาของคุณปรากฏตัว!', 1800); }, 2200);
+      setTimeout(()=>{ if (state.maze === mazeRef) showBanner(count > 1 ? 'ร่างเงา ' + count + ' ตัวปรากฏตัว!' : 'ร่างเงาของคุณปรากฏตัว!', 1800); }, 2200);
     }
     if (eliteCount){
       const mazeRef = state.maze;
@@ -5067,7 +5078,10 @@
         gainXp(monsterXp(m));
         if (m.isBoss) maybeDropBossBonus(m.x, m.y, state.level);
         if (m.isMimic) dropMimicTreasure(m, state.level);
-        if (m.isShadow) maybeDropBossBonus(m.x, m.y, state.level);
+        if (m.isShadow){
+          maybeDropBossBonus(m.x, m.y, state.level);
+          state.shadowKills = (state.shadowKills || 0) + 1;
+        }
       }
     }
     state.monsters = state.monsters.filter(m => m.hp > 0);
@@ -6188,7 +6202,7 @@
     state.running = false;
     releaseControls();
     document.getElementById('pause-stats').innerHTML =
-      'ความยาก <b>' + DIFFICULTIES[state.difficulty].name + '</b><br>' +
+      'ความยาก <b>' + DIFFICULTIES[state.difficulty].name + '</b>' + (state.shadowKills ? ' • ปราบร่างเงา <b>' + state.shadowKills + '</b>' : '') + '<br>' +
       'ดันเจียน <b>Lv.' + state.level + '</b> • คะแนน <b>' + state.score + '</b><br>' +
       'ตัวละคร <b>Lv.' + player.lv + '</b> • HP <b>' + Math.max(0, Math.round(player.hp)) + '/' + player.maxHp + '</b>';
     disarmRestart();
@@ -6983,6 +6997,7 @@
     player.maxHp = 100; player.hp = player.maxHp;
     state.skillOrbs = []; state.skillFx = [];
     state.ending = null;
+    state.shadowKills = 0;
     applyDifficultyStart();
     overlay.classList.add('hidden');
     overlay.classList.remove('ending');
