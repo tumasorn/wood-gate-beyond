@@ -419,6 +419,10 @@
   .diff-opt[data-diff="easy"][aria-checked="true"]{ background:#2c4a30; border-color:var(--moss-300); }
   .diff-opt[data-diff="normal"][aria-checked="true"]{ background:#4a3a22; border-color:var(--torch-500); }
   .diff-opt[data-diff="hard"][aria-checked="true"]{ background:#4a2424; border-color:var(--blood-300); }
+  .vol-field{ display:flex; align-items:center; gap:10px; width:min(300px, 100%); font-size:12px; color:var(--bone-300); }
+  .vol-field label{ font-family:'Press Start 2P', monospace; font-size:9px; color:var(--torch-300); white-space:nowrap; }
+  .vol-range{ flex:1; accent-color:var(--torch-500); height:22px; }
+  .vol-val{ min-width:38px; text-align:right; font-weight:600; color:var(--bone-100); }
   .diff-desc{ min-height:16px; font-size:11px; color:var(--bone-300); opacity:0.85; }
   #startBtn, #restartBtn, #continueBtn{
     font-family:'Press Start 2P', monospace;
@@ -762,6 +766,7 @@
       </div>
       <div class="diff-desc" id="diffDesc"></div>
     </div>
+    <div class="vol-field"><label>🔊 เสียง</label><input type="range" class="vol-range" min="0" max="100" step="5" aria-label="ระดับเสียง"><span class="vol-val"></span></div>
     <div class="overlay-actions">
       <button id="startBtn">เริ่มเกม</button>
       <button id="howtoBtn">วิธีเล่น</button>
@@ -775,6 +780,7 @@
   <div id="pause-overlay" class="hidden">
     <h1>หยุดชั่วคราว</h1>
     <div id="pause-stats"></div>
+    <div class="vol-field"><label>🔊 เสียง</label><input type="range" class="vol-range" min="0" max="100" step="5" aria-label="ระดับเสียง"><span class="vol-val"></span></div>
     <div class="pause-actions">
       <button id="resumeBtn">เล่นต่อ</button>
       <button id="pauseUseHeartBtn" disabled>ใช้หัวใจสำรอง +1 (<span class="kofi-count">-</span>)</button>
@@ -1743,6 +1749,7 @@
       startDodge(m);
       floatText(m, 'หลบ!', '#c79bff');
       noteTrait(m, 'dodge');
+      playSfx('dodge', 0.1);
       return false;
     }
     if (m.dodgeReady){
@@ -1750,6 +1757,7 @@
       startDodge(m);
       floatText(m, 'หลบ!', '#7fe0ff');
       noteTrait(m, 'dodge');
+      playSfx('dodge', 0.1);
       return false;
     }
     const mult = (trait && trait.mod ? trait.mod(src) : 1) * (m.isShadow ? 1 - m.armorCut : 1);
@@ -1759,11 +1767,13 @@
     if (onShield){
       m.shield = Math.max(0, m.shield - dmg);
       m.shieldHit = 0.15;
+      playSfx('shieldHit', 0.06);
       spawnParticles(m.x, m.y, '#9fe8ff', 5);
       if (m.shield <= 0) breakShield(m);
     } else {
       m.hp -= dmg;
       m.hitFlash = src.kind === 'skill' ? 0.18 : 0.15;
+      playSfx('hit', 0.05);
       spawnParticles(m.x, m.y, src.color || '#f3b878', src.kind === 'skill' ? 6 : 5);
     }
     const color = onShield ? '#7fd8ff' : mult < 1 ? '#9aa4ad' : mult > 1 ? '#ffb347' : (src.color || '#f3e9d8');
@@ -2228,6 +2238,7 @@
 
   function wakeMimic(m){
     m.awake = true;
+    playSfx('mimic', 0.5);
     m.attackCooldown = 0.35;   // a beat to react before the first bite
     m.biteT = 0.3;
     spawnParticles(m.x, m.y, '#e0b84a', 12);
@@ -2504,6 +2515,96 @@
       ctx.beginPath(); ctx.arc(m.x, m.y, m.size / 2, 0, Math.PI*2); ctx.fill();
     }
   }
+
+  // ---------- Sound effects ----------
+  // Synthesised with Web Audio (no sound files). The audio context starts on the
+  // first tap or key press, as browsers require; the volume is kept per browser.
+  const VOL_KEY = 'wgb_volume';
+  const sfx = { ctx: null, master: null, noise: null, last: {}, lastHp: null,
+                vol: (()=>{ try { const v = parseFloat(localStorage.getItem(VOL_KEY)); return isFinite(v) ? Math.max(0, Math.min(1, v)) : 0.6; } catch(e){ return 0.6; } })() };
+  function audioReady(){
+    if (sfx.ctx){ if (sfx.ctx.state === 'suspended') sfx.ctx.resume(); return sfx.ctx; }
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    try { sfx.ctx = new AC(); } catch(e){ return null; }
+    sfx.master = sfx.ctx.createGain();
+    sfx.master.gain.value = sfx.vol;
+    sfx.master.connect(sfx.ctx.destination);
+    // one second of white noise, shared by every noisy sound
+    const buf = sfx.ctx.createBuffer(1, sfx.ctx.sampleRate, sfx.ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    sfx.noise = buf;
+    return sfx.ctx;
+  }
+  ['pointerdown', 'keydown', 'touchstart'].forEach(ev => window.addEventListener(ev, audioReady, { passive: true }));
+
+  function setVolume(v){
+    sfx.vol = Math.max(0, Math.min(1, v));
+    if (sfx.master) sfx.master.gain.value = sfx.vol;
+    try { localStorage.setItem(VOL_KEY, String(sfx.vol)); } catch(e){}
+    syncVolumeUi();
+  }
+  function syncVolumeUi(){
+    const pct = Math.round(sfx.vol * 100);
+    document.querySelectorAll('.vol-range').forEach(r => { r.value = pct; });
+    document.querySelectorAll('.vol-val').forEach(el => { el.textContent = pct ? pct + '%' : 'ปิด'; });
+  }
+
+  function sfxTone(type, f0, f1, dur, vol, at){
+    const c = sfx.ctx, t = c.currentTime + (at || 0);
+    const o = c.createOscillator(), g = c.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(f0, t);
+    if (f1) o.frequency.exponentialRampToValueAtTime(Math.max(1, f1), t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(sfx.master);
+    o.start(t); o.stop(t + dur + 0.02);
+  }
+  function sfxNoise(dur, vol, filter, f0, f1, q, at){
+    const c = sfx.ctx, t = c.currentTime + (at || 0);
+    const src = c.createBufferSource();
+    src.buffer = sfx.noise;
+    const fl = c.createBiquadFilter();
+    fl.type = filter; fl.Q.value = q || 1;
+    fl.frequency.setValueAtTime(f0, t);
+    if (f1) fl.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(fl); fl.connect(g); g.connect(sfx.master);
+    src.start(t, Math.random() * 0.5); src.stop(t + dur + 0.02);
+  }
+  const SFX = {
+    swing(){ sfxNoise(0.14, 1.0, 'bandpass', 800, 3400, 0.7); sfxTone('sine', 520, 260, 0.1, 0.06); },                              // blade whoosh
+    hit(){ sfxNoise(0.09, 1.0, 'lowpass', 3000, 400); sfxTone('square', 190, 90, 0.08, 0.22); }, // landing a hit
+    shieldHit(){ sfxTone('triangle', 1400, 950, 0.1, 0.4); },                                  // ringing off a shield
+    dodge(){ sfxNoise(0.12, 0.22, 'highpass', 2500, 6000); },                                    // a miss
+    hurt(){ sfxTone('sawtooth', 230, 70, 0.18, 0.28); sfxNoise(0.12, 0.35, 'lowpass', 1300, 200); }, // the hero is hit
+    heartBreak(){ sfxTone('square', 330, 110, 0.35, 0.22); sfxTone('square', 220, 80, 0.4, 0.15, 0.12); },
+    boss(){ sfxTone('sawtooth', 72, 55, 1.2, 0.24); sfxTone('square', 108, 80, 1.0, 0.12, 0.05); sfxNoise(1.0, 0.22, 'lowpass', 420, 80); },
+    elite(){ [880, 1320, 1760].forEach((fq, i) => sfxTone('sine', fq, fq * 1.01, 0.28, 0.14, i * 0.07)); },
+    mimic(){ sfxNoise(0.25, 0.9, 'bandpass', 320, 120, 1); sfxTone('square', 140, 60, 0.12, 0.28, 0.1); sfxTone('square', 165, 70, 0.1, 0.28, 0.22); },
+    shadow(){ sfxTone('sawtooth', 170, 40, 1.0, 0.16); sfxTone('sine', 95, 45, 1.2, 0.2); sfxNoise(0.8, 0.18, 'lowpass', 900, 100); },
+  };
+  // a sound won't repeat within `gap` seconds (one whirlwind can hit ten things at once)
+  function playSfx(name, gap){
+    if (sfx.vol <= 0 || !SFX[name]) return;
+    const now = performance.now();
+    if (now - (sfx.last[name] || 0) < (gap === undefined ? 0.05 : gap) * 1000) return;
+    if (!audioReady() || !sfx.noise) return;
+    sfx.last[name] = now;
+    try { SFX[name](); } catch(e){}
+  }
+  document.addEventListener('input', (e)=>{
+    if (e.target && e.target.classList && e.target.classList.contains('vol-range')) setVolume(e.target.value / 100);
+  });
+  document.addEventListener('change', (e)=>{
+    if (e.target && e.target.classList && e.target.classList.contains('vol-range')) playSfx('hit', 0);   // a sample at the new level
+  });
 
   // move a monster, sliding around wall corners: when one axis is blocked, look
   // for a small sideways offset that frees it and drift toward that side
@@ -4731,15 +4832,17 @@
       const count = shadowCount(state.level);
       for (let i = 0; i < count; i++) state.monsters.push(spawnShadow(state.level, boss));
       const mazeRef = state.maze;
-      setTimeout(()=>{ if (state.maze === mazeRef) showBanner(count > 1 ? 'ร่างเงา ' + count + ' ตัวปรากฏตัว!' : 'ร่างเงาของคุณปรากฏตัว!', 1800); }, 2200);
+      setTimeout(()=>{ if (state.maze === mazeRef){ showBanner(count > 1 ? 'ร่างเงา ' + count + ' ตัวปรากฏตัว!' : 'ร่างเงาของคุณปรากฏตัว!', 1800); playSfx('shadow', 1); } }, 2200);
     }
     if (eliteCount){
       const mazeRef = state.maze;
-      setTimeout(()=>{ if (state.maze === mazeRef) showBanner('มอนสเตอร์โล่ปรากฏ ' + eliteCount + ' ตัว! ตีโล่ให้แตกก่อน', 1700); }, state.maze.fountain ? 3000 : 1400);
+      setTimeout(()=>{ if (state.maze === mazeRef){ showBanner('มอนสเตอร์โล่ปรากฏ ' + eliteCount + ' ตัว! ตีโล่ให้แตกก่อน', 1700); playSfx('elite', 1); } }, state.maze.fountain ? 3000 : 1400);
     }
     updateHud();
     updateDropsPanel();
     showBanner(bossLevel ? '⚠️ บอสปรากฏตัว! Lv.' + state.level : 'ดันเจียน Lv.' + state.level, bossLevel ? 1600 : 1000);
+    sfx.lastHp = null;   // the new dungeon starts without a stale "hurt"
+    if (bossLevel){ const mazeRef = state.maze; setTimeout(()=>{ if (state.maze === mazeRef) playSfx('boss', 1); }, 350); }
     if (state.maze.fountain){
       const mazeRef = state.maze;
       setTimeout(()=>{ if (state.maze === mazeRef) showBanner('มีบ่อฟื้นพลังซ่อนอยู่ในดันเจียนนี้', 1600); }, bossLevel ? 1800 : 1200);
@@ -4876,6 +4979,7 @@
     player.attackTimer = player.attackDuration;
     player.attackCooldown = player.attackCooldownMax;
     player.hitThisSwing.clear();
+    playSfx('swing', 0.08);
     attackBtn.classList.add('active');
     setTimeout(()=> attackBtn.classList.remove('active'), 150);
   }
@@ -5155,10 +5259,14 @@
     }
     state.damageNumbers = state.damageNumbers.filter(dn => dn.life > 0);
 
+    // any HP lost this frame, from any source, makes the hurt sound
+    if (sfx.lastHp !== null && player.hp < sfx.lastHp - 0.5) playSfx('hurt', 0.12);
+    sfx.lastHp = player.hp;
     if (player.hp <= 0){
       player.hp = 0;
       if (player.hearts > 1){
         player.hearts -= 1;
+        playSfx('heartBreak', 0.3);
         player.hp = player.maxHp;
         player.invuln = 1.5;
         spawnParticles(player.x, player.y, '#a33b3b', 16);
@@ -6165,6 +6273,7 @@
 
   // wire the menu's name box + start button (the menu is rebuilt after a game)
   function bindStartMenu(){
+    syncVolumeUi();
     const input = document.getElementById('playerName');
     const err = document.getElementById('nameError');
     if (input){
@@ -6248,6 +6357,7 @@
       'ตัวละคร <b>Lv.' + player.lv + '</b> • HP <b>' + Math.max(0, Math.round(player.hp)) + '/' + player.maxHp + '</b>';
     disarmRestart();
     pauseOverlay.classList.remove('hidden');
+    syncVolumeUi();
     renderBank();
     refreshBank();
   }
