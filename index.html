@@ -420,6 +420,15 @@
   .diff-opt[data-diff="easy"][aria-checked="true"]{ background:#2c4a30; border-color:var(--moss-300); }
   .diff-opt[data-diff="normal"][aria-checked="true"]{ background:#4a3a22; border-color:var(--torch-500); }
   .diff-opt[data-diff="hard"][aria-checked="true"]{ background:#4a2424; border-color:var(--blood-300); }
+  .lang-field{ display:flex; align-items:center; gap:10px; width:min(300px, 100%); }
+  .lang-label{ font-family:'Press Start 2P', monospace; font-size:9px; color:var(--torch-300); white-space:nowrap; }
+  .lang-opts{ display:flex; gap:6px; flex:1; }
+  .lang-opt{
+    flex:1; padding:7px 4px; border-radius:4px; cursor:pointer;
+    font-family:'IBM Plex Mono', monospace; font-size:12px; font-weight:600;
+    color:var(--bone-300); background:var(--stone-800); border:2px solid var(--stone-700);
+  }
+  .lang-opt[aria-pressed="true"]{ color:var(--bone-100); background:#2b3d4a; border-color:#7fd3f5; }
   .vol-field{ display:flex; align-items:center; gap:10px; width:min(300px, 100%); font-size:12px; color:var(--bone-300); }
   .vol-field label{ font-family:'Press Start 2P', monospace; font-size:9px; color:var(--torch-300); white-space:nowrap; }
   .vol-range{ flex:1; accent-color:var(--torch-500); height:22px; }
@@ -768,6 +777,7 @@
       <div class="diff-desc" id="diffDesc"></div>
     </div>
     <div class="vol-field"><label>🔊 เสียง</label><input type="range" class="vol-range" min="0" max="100" step="5" aria-label="ระดับเสียง"><span class="vol-val"></span></div>
+    <div class="lang-field no-i18n"><span class="lang-label">🌐 ภาษา / Language</span><div class="lang-opts"><button class="lang-opt" data-lang="th" aria-pressed="false">ไทย</button><button class="lang-opt" data-lang="en" aria-pressed="false">English</button></div></div>
     <div class="overlay-actions">
       <button id="startBtn">เริ่มเกม</button>
       <button id="howtoBtn">วิธีเล่น</button>
@@ -777,13 +787,14 @@
     <div class="game-link">ลิงก์เกม: <a href="https://tumasorn.github.io/wood-gate-beyond/" target="_blank" rel="noopener">tumasorn.github.io/wood-gate-beyond</a></div>
     <div class="lb"><div class="lb-title">ตารางคะแนน</div><div class="lb-tabs"><button class="lb-tab" data-tab="top">ผู้เล่นอื่น</button><button class="lb-tab" data-tab="mine">คะแนนของฉัน</button></div><div class="lb-panel" data-panel="top"><ol class="lb-list lb-top"><li class="lb-empty">กำลังโหลด...</li></ol><div class="lb-note lb-top-note"></div></div><div class="lb-panel" data-panel="mine" hidden><div class="lb-mine-sum"></div><ol class="lb-list lb-mine"></ol><div class="lb-note lb-mine-note"></div></div></div>
     <!-- version: major.minor.(number of published updates) - bump the last number on every release -->
-    <div class="game-version">v1.0.71</div>
+    <div class="game-version">v1.0.72</div>
   </div>
 
   <div id="pause-overlay" class="hidden">
     <h1>หยุดชั่วคราว</h1>
     <div id="pause-stats"></div>
     <div class="vol-field"><label>🔊 เสียง</label><input type="range" class="vol-range" min="0" max="100" step="5" aria-label="ระดับเสียง"><span class="vol-val"></span></div>
+    <div class="lang-field no-i18n"><span class="lang-label">🌐 ภาษา / Language</span><div class="lang-opts"><button class="lang-opt" data-lang="th" aria-pressed="false">ไทย</button><button class="lang-opt" data-lang="en" aria-pressed="false">English</button></div></div>
     <div class="pause-actions">
       <button id="resumeBtn">เล่นต่อ</button>
       <button id="pauseUseHeartBtn" disabled>ใช้หัวใจสำรอง +1 (<span class="kofi-count">-</span>)</button>
@@ -888,6 +899,112 @@
   // ---------- Canvas setup ----------
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
+
+  // ---------- Language (Thai / English) ----------
+  // The game is written in Thai. In English mode every Thai piece of text is swapped
+  // on its way to the screen: canvas text through fillText/strokeText, page text by
+  // a MutationObserver. Player names (.lb-name, #goName) and .no-i18n are left alone.
+  const LANG_KEY = 'wgb_lang';
+  let LANG = (()=>{ try { return localStorage.getItem(LANG_KEY) === 'en' ? 'en' : 'th'; } catch(e){ return 'th'; } })();
+  const I18N_EN = {"Pixel dungeon crawler • 100 ดันเจียน • เล่นฟรีบนเบราว์เซอร์ มือถือและคอม":"Pixel dungeon crawler • 100 dungeons • Free to play in your browser, on phone or desktop","หยุดเกม":"Pause","วิธีเล่น":"How to play","อัพพลังสกิล":"Upgrade skill power","ช่องยา (ว่าง)":"Potion slot (empty)","จอยสติ๊ก 8 ทิศทาง":"8-way joystick","หยิบดาบไม้เก่า ๆ เดินสำรวจหน้าดันเจียนที่สุ่มธีมใหม่ทุกครั้ง":"Grab an old wooden sword and explore a dungeon entrance with a new theme every time","แล้วเดินเข้าประตูเพื่อลงไปสู้ในลานต่อสู้":"then walk through the gate to fight inside","เคลียร์มอนสเตอร์ให้หมดเพื่อกลับมาหน้าดันเจียนใหม่ที่ยากขึ้น":"Clear every monster to reach a new, harder dungeon","ชื่อผู้เล่น":"Player name","กรอกชื่อของคุณ":"Enter your name","ระดับความยาก":"Difficulty","ปานกลาง":"Normal","ง่าย":"Easy","ยาก":"Hard","🔊 เสียง":"🔊 Sound","ระดับเสียง":"Volume","เริ่มเกม":"Start game","♥ หัวใจสำรอง":"♥ Spare hearts","• เติมผ่าน Ko-fi":"• Top up via Ko-fi","📣 แชร์คะแนนสูงสุด":"📣 Share best score","ลิงก์เกม:":"Game link:","ตารางคะแนน":"Leaderboard","ผู้เล่นอื่น":"Other players","คะแนนของฉัน":"My scores","กำลังโหลด...":"Loading...","หยุดชั่วคราว":"Paused","ใช้หัวใจสำรอง +1 (":"Use a spare heart +1 (","เริ่มใหม่":"Restart","กลับเมนู":"Main menu","♥ เติมหัวใจสำรองผ่าน Ko-fi":"♥ Get spare hearts via Ko-fi","กด Esc หรือ P เพื่อเล่นต่อ":"Press Esc or P to resume","ร้านพ่อค้า":"Merchant","ก่อนลงดันเจียน แวะซื้อยาไว้ก่อนสิ!":"Stock up on potions before you head in!","ยาโล่พลัง":"Shield Potion","กดใช้แล้วได้โล่ 50% ของ HP สูงสุด อยู่จนกว่าจะแตก":"Gives a shield worth 50% of max HP that lasts until it breaks","ยาฟื้นพลังใหญ่":"Hi-Potion","ยาฟื้นพลัง":"Potion","กดใช้แล้วฟื้น HP +10":"Restores 10 HP","กดใช้แล้วฟื้น HP +50":"Restores 50 HP","ปิดร้าน":"Close shop","♥ เติมหัวใจสำรอง":"♥ Spare hearts","หัวใจสำรองของคุณ:":"Your spare hearts:","สนับสนุนผู้สร้างเกม":"Support the game maker","฿50 = 3 หัวใจสำรอง":"฿50 = 3 spare hearts","ใช้เล่นต่อตอนหัวใจหมด หรือเติมหัวใจระหว่างหยุดเกม":"Use them to continue after game over, or to refill a heart while paused","จ่ายด้วย PromptPay / บัตร":"Pay with PromptPay / card","ผ่าน Stripe • เลือกจำนวนได้ • ไม่ต้องใส่รหัส หัวใจเข้าเครื่องนี้อัตโนมัติ":"Via Stripe • choose the amount • no code needed, hearts arrive on this device automatically","— หรือสนับสนุนผ่าน Ko-fi (บัตร / PayPal) —":"— or support via Ko-fi (card / PayPal) —","รหัสของคุณ":"Your code","คัดลอกรหัสแล้ว":"Code copied","คัดลอกแล้ว วางแชร์ได้เลย":"Copied, paste it anywhere","คัดลอก":"Copy","ไปที่ Ko-fi":"Go to Ko-fi","แล้วเลือกจำนวนกาแฟ (แก้วละ ฿50)":"and pick how many coffees (฿50 each)","ใส่รหัสด้านบนในช่อง":"Put the code above in the","ข้อความ (message)":"message","ตอนสนับสนุน":"box when you support","กลับมากด":"Come back and press","ตรวจสอบยอด":"Check balance","หัวใจจะเข้าภายในไม่กี่นาที":"hearts arrive within a few minutes","หัวใจสำรองผูกกับเบราว์เซอร์นี้ ถ้าลืมใส่รหัสหรือย้ายเครื่อง ติดต่อผู้สร้างผ่าน Ko-fi พร้อมรหัสนี้":"Spare hearts belong to this browser. If you forgot the code or changed device, contact the maker on Ko-fi with this code","📣 แชร์คะแนน":"📣 Share score","— กรอกชื่อในหน้าเมนูก่อนเริ่มเกม (สูงสุด 16 ตัวอักษร) ชื่อนี้จะแสดงในตารางคะแนน และเกมจำไว้ให้ครั้งหน้า":"— enter a name on the menu before starting (up to 16 characters). It shows on the leaderboard and is remembered next time","(ปุ่ม ⏸ มุมบน หรือคีย์ Esc / P) — หยุดกลางเกม เล่นต่อ ดูวิธีเล่น เริ่มใหม่ หรือกลับหน้าเมนูได้ (เริ่มใหม่หรือกลับเมนูจะบันทึกคะแนนรอบนั้นลงตารางด้วย)":"(⏸ button at the top, or Esc / P) — pause, resume, read how to play, restart or go back to the menu (restarting or leaving saves that run's score)","จอยสติ๊ก":"Joystick","(ซ้ายล่าง) — แตะแล้วลากไปทางที่จะเดิน รองรับ 8 ทิศทาง":"(bottom left) — touch and drag where you want to go, 8 directions","(ขวาล่าง สีแดง) — ฟันอาวุธ ระยะขึ้นกับชนิด: มีด 1 ช่อง • ดาบ/ขวาน 2 ช่อง • หอก 3 ช่อง":"(red, bottom right) — swing your weapon. Reach depends on the type: knife 1 tile • sword/axe 2 tiles • spear 3 tiles","(สีเขียว เหนือปุ่มโจมตี) — เดินเข้าใกล้ของที่หล่นแล้วกดเพื่อสวมใส่ทันที":"(green, above Attack) — walk up to a dropped item and press to equip it","ประตูทางเข้า":"Entrance gate","— เดินชนประตูตรงหน้าดันเจียนเพื่อเริ่มต่อสู้":"— walk into the gate at the dungeon entrance to start fighting","พอร์ทัลทางออก":"Exit portal","— เคลียร์มอนสเตอร์หมดแล้วเดินเข้าเพื่อไปหน้าดันเจียนใหม่":"— clear every monster, then walk in to reach the next dungeon","ดาบ/เกราะ":"Weapons/armour","— มอนสเตอร์มีโอกาสดรอปของ เกราะมี 4 ระดับ ขาว/เทา/ทอง/รุ้ง มี DEF หักดาเมจก่อน แล้วลดส่วนที่เหลืออีก 20/40/60/80% ตามระดับ (สูงสุด 80%)":"— monsters may drop gear. Armour comes in 4 tiers (white/grey/gold/rainbow): DEF is subtracted first, then the rest is cut by 20/40/60/80% by tier (max 80%)","— ทุก 10 เลเวลจะมีบอสตัวใหญ่ เลือดเท่ากับ 2 เท่าของ HP สูงสุดของผู้เล่น และโจมตีได้จากระยะไกล ระวังวงแหวนสีทองเตือนก่อนโดนตี":"— every 10 levels a big boss appears with twice your max HP. It attacks from range; watch for the gold warning ring","เลเวลตัวละคร":"Character level","— ฆ่ามอนสเตอร์ได้ EXP เลเวลอัพได้ 1 แต้มสกิล และ HP สูงสุด +5":"— monsters give EXP. Each level gives 1 skill point and +5 max HP","(ปุ่มม่วง หรือคีย์ E) — มอนสเตอร์มีโอกาส 10% ดรอปลูกแก้วสกิล ถือได้ทีละ 1 สกิล มี 6 แบบ ระยะ 1-3 ช่อง (สกิลน้ำแข็งทำให้มอนสเตอร์ในระยะ 3 ช่องเดินช้าลง 50% นาน 3 วินาที) กด + เพื่อใช้แต้มอัพพลังสกิล (+10% ต่อระดับ สูงสุด Lv.20 = +200%) เมื่อพลังเต็มแล้ว ปุ่มจะเปลี่ยนเป็น ♥ ใช้ 1 แต้มแลก HP สูงสุด +5":"(purple button, or E) — monsters have a 10% chance to drop a skill orb. You hold one skill at a time; there are 6, reaching 1-3 tiles (frost slows monsters within 3 tiles by 50% for 3 seconds). Press + to spend points on skill power (+10% per level, up to Lv.20 = +200%). Once maxed, the button turns into ♥: 1 point = +5 max HP","ลักษณะมอนสเตอร์":"Monster traits","— แต่ละชนิดมีคุณสมบัติตามร่างกาย เช่น การ์กอยล์ผิวหินลดดาเมจ 50% วิญญาณโดนอาวุธลด 50% ต้นไม้/ซอมบี้แพ้ไฟ อัศวิน/สไลม์แพ้สายฟ้า เลขสีเทา = ถูกลด • สีส้ม = แพ้ทาง":"— each kind has traits from its body: stone-skinned gargoyles take 50% less, ghosts take 50% less from weapons, trees/zombies are weak to fire, knights/slimes to lightning. Grey numbers = resisted • orange = weakness","มอนสเตอร์โล่":"Shielded monsters","— ตัวสีพิเศษเรืองแสงทอง มีโล่ฟ้าเท่ากับ 50% ของเลือด ต้องตีโล่ให้แตกก่อนถึงจะโดนเลือด โผล่ทุก 3 ด่าน และยิ่งอาวุธกับเกราะของคุณแรงเกินด่าน ยิ่งเจอบ่อย (สูงสุด 50%) ให้ EXP 2 เท่า":"— specially coloured, glowing gold, with a blue shield worth 50% of their HP that must break first. They show up every 3 levels, more often the more your gear outclasses the dungeon (up to 50%). 2x EXP","มอนสเตอร์ลาดตระเวน":"Patrolling monsters","— ตัวถึกที่เดินช้า (ต้นไม้ยักษ์ โกเลม ซอมบี้ การ์กอยล์) จะเดินสุ่มไปมา มีกรวยการมองเห็นสีส้มด้านหน้า ระยะ 5 ช่อง ถ้าเดินเข้ากรวย ชนตัว หรือตีมัน จะขึ้น":"— slow, tough monsters (treants, golems, zombies, gargoyles) wander with an orange vision cone 5 tiles long. Step into it, bump them or hit them and they show","แล้วไล่ตาม ถ้าหายจากสายตา 3 วินาทีจะขึ้น":"and chase you. Out of sight for 3 seconds, they show","แล้วกลับไปเดินสุ่ม แอบตีจากด้านหลังได้":"and go back to wandering. You can sneak up from behind","การหลบ":"Dodging","— มอนสเตอร์ที่เพิ่งโดนตีมีโอกาสหลบการโจมตีครั้งถัดไป ตัวเร็วอย่างค้างคาว/หมาป่าหลบเก่ง ตัวหินแทบไม่หลบ":"— a monster that was just hit may dodge the next attack. Fast ones like bats and wolves dodge a lot, stone ones hardly ever","ท่าใหญ่ของบอส":"Boss big attacks","— บอสร่าย 1-3 วินาทีพร้อมพื้นที่สีแดงเตือน (ทุบพื้น / อุกกาบาต / ลำแสง) ดาเมจแรงมาก ให้รีบออกจากพื้นที่สีแดง":"— the boss charges for 1-3 seconds while a red area warns you (slam / meteors / beam). It hits very hard, so get out of the red","เหรียญ & ร้านพ่อค้า":"Coins & the merchant","— มอนสเตอร์มีโอกาส 20% ดรอป 2 เหรียญ บอสมีโอกาส 40% ดรอป 10 เหรียญ เดินเข้าใกล้พ่อค้าหน้าดันเจียนแล้วกดปุ่ม":"— monsters have a 20% chance to drop 2 coins, bosses 40% for 10 coins. Walk up to the merchant at the entrance and press","(หรือคีย์ F) เพื่อซื้อ ยาโล่พลัง (โล่ 50% ของ HP สูงสุด อยู่จนกว่าจะแตก, 50) • ยาฟื้นพลัง +10 HP (20) • ยาฟื้นพลังใหญ่ +50 HP (100) — มีช่องยาช่องเดียว ซื้อขวดใหม่จะทับขวดเดิม กดใช้จากปุ่มมุมซ้ายล่าง หรือคีย์ 1":"(or F) to buy a Shield Potion (shield worth 50% of max HP until it breaks, 50) • Potion +10 HP (20) • Hi-Potion +50 HP (100). There is one potion slot; a new bottle replaces the old one. Use it from the bottom-left button or key 1","— มี 3 ดวง หาก HP หมดจะเสียหัวใจ 1 ดวงแล้วฟื้น HP เต็มไปต่อได้ทันที เกมจะจบจริงเมื่อหัวใจหมดทุกดวง":"— you have 3. Running out of HP costs one heart and refills your HP so you keep going. The game ends when every heart is gone","หัวใจหมดแล้ว":"Out of hearts","♥ ใช้หัวใจสำรองเล่นต่อ (":"♥ Continue with a spare heart (","หัวใจ":"Hearts","กลับสู่โลกจริงหลังผ่านครบ":"Back in the real world after clearing all","กลับสู่โลกจริงแล้ว":"Back in the real world","กลับสู่โลกจริง":"Back to the real world","กลับ":"Back","โลกจริง":"Real world","ทางออก":"Exit","ดาบไม้":"Wooden Sword","เสื้อเริ่มต้น":"Starter Shirt","ป่าต้องคำสาป":"Cursed Forest","ถ้ำมืด":"Dark Cave","สุสานร้าง":"Abandoned Crypt","ปราสาทเก่า":"Old Castle","ก็อบลิน":"Goblin","หมาป่า":"Wolf","ต้นไม้ยักษ์":"Treant","ค้างคาว":"Bat","สไลม์":"Slime","โกเลม":"Golem","โครงกระดูก":"Skeleton","วิญญาณ":"Ghost","ซอมบี้":"Zombie","อัศวินคลั่ง":"Mad Knight","จอมเวทมืด":"Dark Mage","การ์กอยล์":"Gargoyle","ร่างเงาของคุณปรากฏตัว!":"Your Shadow has appeared!","ร่างเงา":"Shadow","ลอกอาวุธ เกราะ สกิล และ HP ของคุณ • หลบได้ 50%":"copies your weapon, armour, skill and HP • dodges 50%","แกล้งตาย":"Playing dead","ปลอมตัวเป็นหีบสมบัติ ไม่ขยับไปไหน":"poses as a treasure chest and never moves","ว่องไว":"Nimble","หลบการโจมตีเก่งที่สุด":"the best dodger of all","หลบการโจมตีเก่งมาก":"dodges very well","หลบการโจมตีเก่ง":"dodges well","ปราดเปรียว":"Agile","เปลือกไม้":"Bark skin","ลดดาเมจ 30% แต่แพ้ไฟ":"takes 30% less, but weak to fire","บินหลบ":"Evasive flier","ตัวหนืด":"Gooey","อาวุธลดดาเมจ 30% แต่แพ้สายฟ้า":"weapons do 30% less, but weak to lightning","ร่างศิลา":"Stone body","ลดดาเมจ 40% ยกเว้นสายฟ้า":"takes 40% less except from lightning","กระดูกโปร่ง":"Hollow bones","ท่าแทงลดดาเมจ 50%":"thrusts do 50% less","ร่างวิญญาณ":"Spirit form","อาวุธลดดาเมจ 50% (สกิลโดนเต็ม)":"weapons do 50% less (skills hit fully)","เนื้อเน่า":"Rotting flesh","ลดดาเมจ 20% แต่แพ้ไฟ":"takes 20% less, but weak to fire","เกราะเหล็ก":"Iron armour","ลดดาเมจ 30% แต่แพ้สายฟ้า":"takes 30% less, but weak to lightning","โล่เวท":"Magic ward","สกิลลดดาเมจ 40%":"skills do 40% less","ผิวหิน":"Stone skin","ลดดาเมจ 50%":"takes 50% less","โล่พลังแตกแล้ว!":"Your shield broke!","โล่แตก!":"Shield broken!","หลบ!":"Dodge!","ทุบพื้นสะเทือน":"Ground Slam","อุกกาบาตถล่ม":"Meteor Storm","ลำแสงทำลายล้าง":"Ruin Beam","ร่าย":"Casting","มิมิค! หีบสมบัตินี้คือมอนสเตอร์":"Mimic! That treasure chest is a monster","มิมิคดรอป":"Mimic dropped","มิมิค":"Mimic","บ่อฟื้นพลัง +":"Fountain +","มีดสั้น":"Dagger","ดาบเหล็ก":"Iron Sword","ดาบเงิน":"Silver Sword","ขวานรบ":"Battle Axe","หอกยาว":"Long Spear","กระบี่ไฟ":"Fire Sabre","กระบี่พิษ":"Venom Sabre","ดาบมรกต":"Emerald Sword","ดาบเลือด":"Blood Sword","ได้รับหัวใจเพิ่ม":"Got more hearts:","ได้รับ":"Got","เสื้อผ้าเก่า":"Old Clothes","เกราะหนัง":"Leather Armour","เกราะทองคำ":"Gold Armour","เกราะรุ้งวิเศษ":"Rainbow Armour","บอสดรอปไอเทมหายาก!":"The boss dropped a rare item!","โล่พลัง":"Shield","HP เต็มอยู่แล้ว":"HP is already full","พ่อค้า":"Merchant","เหรียญของคุณ:":"Your coins:","ช่องยา:":"Potion slot:","ว่าง":"empty","(ซื้อขวดใหม่จะทับขวดนี้)":"(a new bottle replaces this one)","อยู่ในช่องแล้ว":"already in your slot","จะทับ":"replaces ","เลเวลอัพ! Lv.":"Level up! Lv.","• แต้มสกิล +1":"• Skill point +1","ฟันวงเดือน":"Crescent Slash","ฟันโค้งด้านหน้า 2 ช่อง":"an arc in front, 2 tiles","พายุหมุน":"Whirlwind","หมุนรอบตัว 2 ช่อง โดน 3 ครั้ง":"spins around you, 2 tiles, hits 3 times","แทงทะลวง":"Piercing Thrust","แทงตรงทะลุ 3 ช่อง":"a straight stab through 3 tiles","ระเบิดเพลิง":"Fire Blast","ระเบิดไฟห่างออกไป 2 ช่อง":"a fire burst 2 tiles away","สายฟ้าฟาด":"Lightning Strike","ฟาดศัตรูใกล้สุด 3 ตัวในระยะ 3 ช่อง":"strikes the 3 nearest enemies within 3 tiles","ไอเย็นเยือกแข็ง":"Frost Aura","ไอเย็นรอบตัว 3 ช่อง มอนสเตอร์ช้าลง 50% 3 วินาที":"cold around you, 3 tiles; monsters slow by 50% for 3 seconds","ได้สกิล":"New skill:","แต้มสกิล → HP +":"Skill point → HP +","(HP สูงสุด":"(max HP","พลังสกิล Lv.":"Skill power Lv.","มีบ่อฟื้นพลังซ่อนอยู่ในดันเจียนนี้":"A healing fountain is hidden in this dungeon","ประตูกลับสู่โลกจริงเปิดแล้ว!":"The gate back to the real world is open!","⚠️ บอสปรากฏตัว! Lv.":"⚠️ A boss appears! Lv.","ตัวปรากฏตัว!":"appeared!","มอนสเตอร์โล่ปรากฏ":"Shielded monsters:","ตัว! ตีโล่ให้แตกก่อน":"! Break their shields first","เคลียร์ด่าน! +":"Dungeon cleared! +","หัวใจแตก! เหลือ":"Heart broken! Left:","เดินเข้าประตูเพื่อเริ่มต่อสู้":"Walk into the gate to start fighting","(มีแล้ว)":"(owned)","ดันเจียน! เดินเข้าประตูกลับโลกจริง":"dungeons! Walk into the gate back home","เคลียร์แล้ว! เดินเข้าประตูทางออก":"Cleared! Walk into the exit portal","เคลียร์ครบ":"Cleared all","มอนสเตอร์เหลือ:":"Monsters left:","แปลงแต้มสกิลเป็น HP +":"Convert a skill point to HP +","ยังไม่มีสกิล":"No skill yet","พลัง Lv.":"Power Lv.","เริ่มต้นได้สกิลสุ่ม 1 ท่า และยาสุ่ม 1 ขวด":"Start with a random skill and a random potion","แบบมาตรฐาน":"The standard game","มอนสเตอร์ 6-10 ตัว ตีแรงขึ้น • บอสดรอปของหายาก 50% • เหรียญ 4 (30%)":"6-10 monsters that hit harder • bosses drop rare gear 50% • 4 coins (30%)","กรุณากรอกชื่อก่อนเริ่มเกม":"Please enter a name before starting","ความยาก":"Difficulty","• ปราบร่างเงา":"• Shadows beaten","ตัวละคร":"Character","แตะอีกครั้งเพื่อยืนยัน":"Tap again to confirm","เชื่อมต่อไม่ได้ ลองเปิดเกมจาก GitHub Pages":"Can't connect. Try opening the game from GitHub Pages","เชื่อมต่อไม่ได้":"Can't connect","ใช้หัวใจสำรอง! สู้ต่อ":"Spare heart used! Keep fighting","กำลังเปิดหน้าชำระเงิน...":"Opening the payment page...","จ่ายในแท็บใหม่ เสร็จแล้วกลับมากด":"Pay in the new tab, then come back and press","ยังไม่เปิดรับชำระผ่าน Stripe":"Stripe payments are not open yet","เปิดหน้าชำระเงินไม่ได้ ลองใหม่อีกครั้ง":"Couldn't open the payment page. Please try again","ยกเลิกการชำระเงินแล้ว":"Payment cancelled","ชำระเงินสำเร็จ! กำลังรอหัวใจเข้า...":"Payment done! Waiting for your hearts...","ดวง ขอบคุณที่สนับสนุน!":"Thank you for your support!","ยังไม่เห็นหัวใจเข้า (PromptPay อาจใช้เวลาสักครู่) กด":"No hearts yet (PromptPay can take a moment). Press","อีกครั้งภายหลัง":"again later","กำลังตรวจสอบ...":"Checking...","ยอดล่าสุด":"Balance:","ดวง (ถ้าเพิ่งจ่าย รอสักครู่แล้วลองใหม่)":"(if you just paid, wait a moment and try again)","เลือกรหัสไว้แล้ว กดคัดลอกเองได้เลย":"Code selected, copy it yourself","ดันเจียนแล้ว (ไปถึงด่าน":"dungeons (reached dungeon","ไปถึงดันเจียนชั้น":"Reached dungeon","🏆 คะแนนสูงสุดของฉันใน Wood Gate Beyond:":"🏆 My best score in Wood Gate Beyond:","มาท้าทำลายสถิติกันไหม? เล่นฟรีบนเบราว์เซอร์ 👇":"Think you can beat it? Free to play in your browser 👇","ยังไม่มีคะแนน เล่นให้จบสักรอบก่อนนะ":"No score yet. Finish a run first!","เลือกข้อความไว้แล้ว กดคัดลอกเองได้เลย":"Text selected, copy it yourself","นักผจญภัย":"Adventurer","เชื่อมต่อตารางรวมไม่ได้ตอนนี้ (ออฟไลน์?) คะแนนจะเก็บในเครื่องไว้ก่อน":"Can't reach the shared leaderboard right now (offline?). Scores are kept on this device for now","ยังไม่มีผู้เล่นอื่นบันทึกคะแนน":"No other players have a score yet","★ ด่าน":"★ Dungeon","สถิติดีสุดของผู้เล่นแต่ละคน (ไม่รวมคุณ)":"Each player's best (not counting you)","บนตารางรวม:":"On the shared board:",") • อันดับที่":") • rank","ยังไม่มีคะแนนบนตารางรวม เล่นให้จบสักรอบ!":"No score on the shared board yet. Finish a run!","• อันดับที่":"• rank","บัญชีนี้ส่งคะแนนขึ้นตารางรวมไม่ได้ คะแนนเก็บไว้ในเครื่องนี้":"This account can't post to the shared board; scores stay on this device","ยังไม่มีคะแนน เล่นให้จบสักรอบ!":"No score yet. Finish a run!","10 รอบที่ดีที่สุดบนเครื่องนี้":"Your 10 best runs on this device","ยินดีด้วย!":"Congratulations!","คุณเคลียร์เกมสำเร็จ":"You beat the game","นี่คือโหมดชมฉากจบ (ไม่บันทึกคะแนน)":"This is the ending preview (no score saved)","ผ่านครบ":"Clear all","ดันเจียนเพื่อกลับสู่โลกจริงด้วยตัวเอง!":"dungeons to return to the real world yourself!","คะแนนรวม":"Total score","• เลเวลตัวละคร":"• Character level","ผจญภัยอีกครั้ง":"Adventure again","เล่นต่อ = ลุยดันเจียน":"Continue = take on dungeon","ขึ้นไปด้วยตัวละครเดิม คะแนนสะสมต่อจากนี้":"and beyond with the same hero; your score keeps adding up","ผจญภัยต่อ! ดันเจียน Lv.":"Onward! Dungeon Lv.","ดันเจียน Lv.":"Dungeon Lv.","ลองอีกครั้ง":"Try again","เล่นต่อ":"Continue","ผู้เล่น":"Player","ร้าน":"Shop","ปิด":"Close","ใช้":"Use ","ได้":"Got ","และ":" and ","ยา":"Potion","บอส":"Boss ","สกิล":"Skill","เก็บ":"Pick up","โจมตี":"Attack","แต้ม":"Points","ดวง":"","กด":"Press","• ลด":"• cuts","• คะแนน":"• Score","คะแนน":"Score","ด่าน":"Dungeon","ดันเจียน":"Dungeon","มอนสเตอร์":"Monsters","ภาษา":"Language","เล่นฟรีบนเบราว์เซอร์ มือถือและคอม":"Free to play in your browser, on phone or desktop","เดินเข้าประตูกลับโลกจริง":"Walk into the gate back home","(ถ้าเพิ่งจ่าย รอสักครู่แล้วลองใหม่)":"(if you just paid, wait a moment and try again)"};
+  const I18N_PATTERNS = [
+    [/ร่างเงา (\d+) ตัวปรากฏตัว!/g, "$1 Shadows have appeared!"],
+    [/มอนสเตอร์โล่ปรากฏ (\d+) ตัว! ตีโล่ให้แตกก่อน/g, "$1 shielded monsters! Break their shields first"],
+    [/หัวใจแตก! เหลือ (\d+) ดวง/g, "Heart broken! $1 left"],
+    [/ได้รับหัวใจเพิ่ม (\d+) ดวง ขอบคุณที่สนับสนุน!/g, "Got $1 more hearts. Thank you for your support!"],
+    [/ยอดล่าสุด (\d+) ดวง/g, "Balance: $1"],
+    [/(\d[\d,]*) คะแนน/g, "$1 pts"],
+    [/(\d+) ดันเจียน/g, "$1 dungeons"],
+    [/คะแนน (\d)/g, "Score $1"]
+  ];
+  const I18N_THAI = /[\u0E01-\u0E3A\u0E40-\u0E5B]/;
+  const I18N_RE = new RegExp(Object.keys(I18N_EN).sort((a, b) => b.length - a.length)
+    .map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'g');
+  const i18nCache = new Map();
+  function tr(str){
+    if (LANG !== 'en' || typeof str !== 'string' || !I18N_THAI.test(str)) return str;
+    let out = i18nCache.get(str);
+    if (out === undefined){
+      out = str;
+      for (const [p, r] of I18N_PATTERNS) out = out.replace(p, r);
+      out = out.replace(I18N_RE, m => I18N_EN[m]);
+      if (i18nCache.size > 4000) i18nCache.clear();
+      i18nCache.set(str, out);
+    }
+    return out;
+  }
+  // canvas text
+  {
+    const fill = ctx.fillText.bind(ctx), stroke = ctx.strokeText.bind(ctx);
+    ctx.fillText = (t, x, y, w) => w === undefined ? fill(tr(t), x, y) : fill(tr(t), x, y, w);
+    ctx.strokeText = (t, x, y, w) => w === undefined ? stroke(tr(t), x, y) : stroke(tr(t), x, y, w);
+  }
+  // page text
+  const I18N_ATTRS = ['placeholder', 'aria-label', 'title'];
+  const I18N_SKIP = '.no-i18n, .lb-name, #goName';
+  function i18nSkip(node){
+    const el = node.nodeType === 1 ? node : node.parentElement;
+    return !!(el && el.closest && el.closest(I18N_SKIP));
+  }
+  function i18nText(n){
+    const t = n.nodeValue;
+    if (!I18N_THAI.test(t) || i18nSkip(n)) return;
+    const en = tr(t);
+    if (en === t) return;
+    n.__th = t; n.__en = en;
+    n.nodeValue = en;
+  }
+  function i18nAttr(el, a){
+    const v = el.getAttribute(a);
+    if (!v || !I18N_THAI.test(v) || i18nSkip(el)) return;
+    (el.__thAttr || (el.__thAttr = {}))[a] = v;
+    el.setAttribute(a, tr(v));
+  }
+  function i18nTree(root){
+    if (root.nodeType === 3){ i18nText(root); return; }
+    if (root.nodeType !== 1) return;
+    I18N_ATTRS.forEach(a => i18nAttr(root, a));
+    const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
+    for (let n = w.nextNode(); n; n = w.nextNode()){
+      if (n.nodeType === 3) i18nText(n); else I18N_ATTRS.forEach(a => i18nAttr(n, a));
+    }
+  }
+  function i18nRestore(){
+    const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
+    for (let n = w.nextNode(); n; n = w.nextNode()){
+      if (n.nodeType === 3){ if (n.__th !== undefined && n.nodeValue === n.__en) n.nodeValue = n.__th; }
+      else if (n.__thAttr){ for (const a in n.__thAttr) n.setAttribute(a, n.__thAttr[a]); n.__thAttr = null; }
+    }
+  }
+  const i18nObserver = typeof MutationObserver !== 'undefined' ? new MutationObserver(muts => {
+    if (LANG !== 'en') return;
+    for (const m of muts){
+      if (m.type === 'characterData') i18nText(m.target);
+      else if (m.type === 'attributes') i18nAttr(m.target, m.attributeName);
+      else m.addedNodes.forEach(i18nTree);
+    }
+  }) : null;
+  if (i18nObserver) i18nObserver.observe(document.body, { subtree: true, childList: true, characterData: true,
+                                                          attributes: true, attributeFilter: I18N_ATTRS });
+  function syncLangUi(){
+    document.querySelectorAll('.lang-opt').forEach(b => b.setAttribute('aria-pressed', b.dataset.lang === LANG ? 'true' : 'false'));
+  }
+  function setLang(l){
+    LANG = l === 'en' ? 'en' : 'th';
+    try { localStorage.setItem(LANG_KEY, LANG); } catch(e){}
+    i18nCache.clear();
+    document.documentElement.setAttribute('lang', LANG);
+    if (LANG === 'en') i18nTree(document.body); else i18nRestore();
+    syncLangUi();
+    if (typeof lbRender === 'function') lbRender();   // dates follow the language
+  }
+  document.addEventListener('click', (e)=>{
+    const b = e.target.closest && e.target.closest('.lang-opt');
+    if (b) setLang(b.dataset.lang);
+  });
+  document.documentElement.setAttribute('lang', LANG);
+  if (LANG === 'en') i18nTree(document.body);
+  syncLangUi();
   const wrap = document.getElementById('canvas-wrap');
 
   const ARENA_W = 360;   // entrance scene size (its layout is built for this)
@@ -6284,6 +6401,7 @@
   // wire the menu's name box + start button (the menu is rebuilt after a game)
   function bindStartMenu(){
     syncVolumeUi();
+    syncLangUi();
     const input = document.getElementById('playerName');
     const err = document.getElementById('nameError');
     if (input){
@@ -6368,6 +6486,7 @@
     disarmRestart();
     pauseOverlay.classList.remove('hidden');
     syncVolumeUi();
+    syncLangUi();
     renderBank();
     refreshBank();
   }
@@ -6689,7 +6808,7 @@
   async function shareBest(){
     const run = bestRun();
     if (!run){ showBanner('ยังไม่มีคะแนน เล่นให้จบสักรอบก่อนนะ', 1600); return; }
-    const text = shareMessage(run);
+    const text = tr(shareMessage(run));
     if (navigator.share){
       try { await navigator.share({ title: 'Wood Gate Beyond', text, url: GAME_SHARE_URL }); return; }
       catch(e){ if (e && e.name === 'AbortError') return; }   // other failures fall back to the panel
@@ -6882,7 +7001,7 @@
       if (seq !== lbRenderSeq) return;   // a newer render is on its way
     }
     const local = lbLocalLoad();
-    const fmtDate = at => new Date(at || 0).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
+    const fmtDate = at => new Date(at || 0).toLocaleDateString(LANG === 'en' ? 'en-GB' : 'th-TH', { day: 'numeric', month: 'short' });
     for (const box of boxes){
       box.querySelectorAll('.lb-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === lb.tab));
       box.querySelectorAll('.lb-panel').forEach(p => { p.hidden = p.dataset.panel !== lb.tab; });
