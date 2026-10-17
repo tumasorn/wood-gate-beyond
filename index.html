@@ -2588,6 +2588,11 @@
     boss(){ sfxTone('sawtooth', 72, 55, 1.2, 0.24); sfxTone('square', 108, 80, 1.0, 0.12, 0.05); sfxNoise(1.0, 0.22, 'lowpass', 420, 80); },
     elite(){ [880, 1320, 1760].forEach((fq, i) => sfxTone('sine', fq, fq * 1.01, 0.28, 0.14, i * 0.07)); },
     mimic(){ sfxNoise(0.25, 0.9, 'bandpass', 320, 120, 1); sfxTone('square', 140, 60, 0.12, 0.28, 0.1); sfxTone('square', 165, 70, 0.1, 0.28, 0.22); },
+    // stepping through a gate: the exit warp shimmers upward, a dungeon door whooshes down and in
+    warp(){ sfxTone('sine', 300, 1400, 0.55, 0.22); sfxTone('triangle', 600, 2400, 0.5, 0.1, 0.05); sfxNoise(0.6, 0.25, 'bandpass', 600, 4000, 0.8); },
+    dungeon(){ sfxNoise(0.7, 0.35, 'lowpass', 2400, 160); sfxTone('sine', 180, 70, 0.7, 0.22); sfxTone('triangle', 360, 900, 0.45, 0.08, 0.15); },
+    coin(){ sfxTone('square', 988, 988, 0.07, 0.2); sfxTone('square', 1319, 1319, 0.16, 0.2, 0.07); },                 // bling
+    coinBig(){ [988, 1319, 1568, 1976].forEach((fq, i) => sfxTone('square', fq, fq, 0.09, 0.18, i * 0.06)); },           // a boss's pile
     shadow(){ sfxTone('sawtooth', 170, 40, 1.0, 0.16); sfxTone('sine', 95, 45, 1.2, 0.2); sfxNoise(0.8, 0.18, 'lowpass', 900, 100); },
   };
   // a sound won't repeat within `gap` seconds (one whirlwind can hit ten things at once)
@@ -4168,6 +4173,7 @@
       if (Math.hypot(player.x - c.x, player.y - c.y) < player.size/2 + 12){
         c.taken = true;
         player.coins += c.amount;
+        playSfx(c.amount >= 10 ? 'coinBig' : 'coin', 0.06);
         spawnParticles(c.x, c.y, '#f0d27a', 6);
         state.damageNumbers.push({ x: c.x, y: c.y - 10, vx: 0, vy: -46, life: 0.8, maxLife: 0.8,
                                    amount: c.amount, text: '+' + c.amount, color: '#f0d27a' });
@@ -5317,6 +5323,7 @@
 
   function startTransition(kind, cx, cy, action){
     if (state.transition) return;
+    playSfx(kind === 'warp' ? 'warp' : 'dungeon', 0.5);
     const fx = [];
     for (let i = 0; i < 48; i++){
       const r = rand(40, 120);
