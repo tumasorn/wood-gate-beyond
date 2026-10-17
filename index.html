@@ -372,6 +372,7 @@
   .lb-row.me{ background:rgba(224,137,74,0.14); }
   .lb-row.me .lb-name{ color:var(--torch-300); }
   .lb-empty{ font-size:11px; color:var(--bone-300); text-align:center; padding:6px 0; }
+  .game-version{ font-family:'Press Start 2P', monospace; font-size:8px; color:var(--bone-300); opacity:0.5; letter-spacing:1px; margin-top:-6px; }
   .lb-note{ font-size:10px; color:var(--bone-300); opacity:0.75; margin-top:8px; text-align:center; line-height:1.5; }
   .lb-tabs{ display:flex; gap:6px; margin-bottom:8px; }
   .lb-tab{
@@ -775,6 +776,8 @@
     <button class="share-best">📣 แชร์คะแนนสูงสุด</button>
     <div class="game-link">ลิงก์เกม: <a href="https://tumasorn.github.io/wood-gate-beyond/" target="_blank" rel="noopener">tumasorn.github.io/wood-gate-beyond</a></div>
     <div class="lb"><div class="lb-title">ตารางคะแนน</div><div class="lb-tabs"><button class="lb-tab" data-tab="top">ผู้เล่นอื่น</button><button class="lb-tab" data-tab="mine">คะแนนของฉัน</button></div><div class="lb-panel" data-panel="top"><ol class="lb-list lb-top"><li class="lb-empty">กำลังโหลด...</li></ol><div class="lb-note lb-top-note"></div></div><div class="lb-panel" data-panel="mine" hidden><div class="lb-mine-sum"></div><ol class="lb-list lb-mine"></ol><div class="lb-note lb-mine-note"></div></div></div>
+    <!-- version: major.minor.(number of published updates) - bump the last number on every release -->
+    <div class="game-version">v1.0.71</div>
   </div>
 
   <div id="pause-overlay" class="hidden">
